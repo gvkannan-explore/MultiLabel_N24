@@ -1,0 +1,24 @@
+[project]
+name = "mmclf-n24"
+version = "0.1.0"
+description = "Train Multi-modal News-classification model using lightning, transformers and timm"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pillow>=11.0.0",
+    "transformers>=4.46.2",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+    "jupyter>=1.1.1",
+    "python-dotenv>=1.0.1",
+    "rich>=13.9.4",
+    "tqdm>=4.67.0",
+]
+lint = [
+    "black>=24.10.0",
+    "isort>=5.13.2",
+    "ruff>=0.7.3",
+]
