@@ -35,7 +35,7 @@ N24 Dataset - Article Text (Headline + Body), Category Label
 Modest GPU (e.g., 8GB VRAM) is highly recommended for faster training. Can potentially run on CPU for inference. Specific instructions shall be provided later!
 
 **Key Resources/Tools:**
--   Hugging Face `transformers` library (for models and tokenizers)
+-   Hugging Face `transformers` & `sentence-transformers` library (for models and tokenizers)
 -   Hugging Face `datasets` library (for data loading and management)
 -   PyTorch (as the backend framework)
 -   scikit-learn (for evaluation metrics)
