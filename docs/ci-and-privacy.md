@@ -69,3 +69,26 @@ History was rewritten before guardrails were added (see
 anonymous identity, and the full-history privacy scan has no allowlist. Hooks
 protect new work but can be bypassed, so make the CI check required in branch
 protection.
+
+## Merging
+
+Merge by fast-forwarding `main` from your machine, not with GitHub's merge,
+squash, or rebase buttons. Those buttons create commits whose author is your
+GitHub account, which the history scan rejects on every later run.
+
+```bash
+git switch main
+git merge --ff-only <branch>
+git push origin main
+```
+
+The pre-push hook runs the history scans and local CI before the push. GitHub
+marks the pull request as merged once `main` contains its commits. Pull request
+CI checks out the branch's own head commit for the same reason: GitHub's
+default checkout for pull requests is a temporary merge commit with your account
+as author.
+
+The `main` ruleset should require the `checks` status and linear history, block
+force pushes and deletions, and leave "Require a pull request before merging"
+off. A pushed commit passes the status rule when CI already succeeded on that
+commit, which is true after the branch's own push run.
