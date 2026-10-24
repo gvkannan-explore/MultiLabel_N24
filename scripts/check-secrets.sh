@@ -12,6 +12,8 @@ if [[ ! -x "$scanner" ]]; then
 fi
 cd "$repo_root"
 if [[ $# -eq 0 ]]; then
-    set -- '--log-opts=--all HEAD'
+    # Scan what this repository can publish. --all would also cover remote-tracking
+    # refs and app checkpoint refs (refs/t3/*) that this repository never pushes.
+    set -- '--log-opts=--branches --tags HEAD'
 fi
 exec "$scanner" git --redact --verbose --no-banner "$@" .
