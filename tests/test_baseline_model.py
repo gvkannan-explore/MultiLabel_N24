@@ -93,7 +93,7 @@ class PrepareDataTests(unittest.TestCase):
 def save_tiny_roberta(directory: Path, texts: list[str]) -> None:
     """Save a 2-layer RoBERTa and a tokenizer trained on the fixture text, so
     the trainer runs without downloading roberta-base."""
-    from tokenizers.implementations import ByteLevelBPETokenizer
+    from tokenizers.implementations.byte_level_bpe import ByteLevelBPETokenizer
     from transformers import RobertaConfig, RobertaModel, RobertaTokenizerFast
 
     bpe = ByteLevelBPETokenizer()
