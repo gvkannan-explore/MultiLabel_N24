@@ -131,7 +131,7 @@ def train(args: argparse.Namespace) -> dict:
             per_device_eval_batch_size=args.batch_size * 2,
             learning_rate=args.lr,
             lr_scheduler_type="linear",
-            warmup_ratio=0.06,
+            warmup_steps=0.06,  # a float below 1 is a ratio of total steps
             weight_decay=0.01,
             eval_strategy=strategy,
             save_strategy=strategy,
