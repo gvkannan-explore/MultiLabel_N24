@@ -21,6 +21,7 @@ def load_script(name: str):
 
 
 prepare_data = load_script("prepare_data")
+train_baseline = load_script("train_baseline")
 
 SECTIONS = ["Travel", "Books", "Sports"]
 
@@ -87,6 +88,103 @@ class PrepareDataTests(unittest.TestCase):
             write_splits(Path(tmp), fixture_splits())
             with self.assertRaisesRegex(ValueError, "Expected 24 sections"):
                 prepare_data.prepare(Path(tmp))
+
+
+def save_tiny_roberta(directory: Path, texts: list[str]) -> None:
+    """Save a 2-layer RoBERTa and a tokenizer trained on the fixture text, so
+    the trainer runs without downloading roberta-base."""
+    from tokenizers.implementations import ByteLevelBPETokenizer
+    from transformers import RobertaConfig, RobertaModel, RobertaTokenizerFast
+
+    bpe = ByteLevelBPETokenizer()
+    # Special tokens first, so their ids match roberta-base (<pad> is 1).
+    bpe.train_from_iterator(
+        iter(texts),
+        vocab_size=300,
+        special_tokens=["<s>", "<pad>", "</s>", "<unk>", "<mask>"],
+    )
+    directory.mkdir()
+    bpe.save_model(str(directory))
+    tokenizer = RobertaTokenizerFast(
+        vocab_file=str(directory / "vocab.json"),
+        merges_file=str(directory / "merges.txt"),
+    )
+    config = RobertaConfig(
+        vocab_size=tokenizer.vocab_size,
+        hidden_size=32,
+        num_hidden_layers=2,
+        num_attention_heads=2,
+        intermediate_size=64,
+        # RoBERTa positions start after the padding id, so allow 128 + 2.
+        max_position_embeddings=130,
+    )
+    # An encoder with no classification head, like roberta-base.
+    RobertaModel(config).save_pretrained(str(directory))
+    tokenizer.save_pretrained(str(directory))
+
+
+class TrainBaselineTests(unittest.TestCase):
+    def test_metrics_match_scikit_learn(self):
+        import numpy as np
+        from sklearn.metrics import accuracy_score, f1_score
+
+        rng = np.random.default_rng(0)
+        labels = rng.integers(0, 5, 200)
+        # Section 4 is never predicted, so its F1 is 0 rather than undefined.
+        logits = rng.normal(size=(200, 5))
+        logits[:, 4] = -10
+        preds = logits.argmax(axis=-1)
+        metrics = train_baseline.compute_metrics(
+            train_baseline.EvalPrediction(predictions=logits, label_ids=labels)
+        )
+        # scikit-learn accepts average=None; its inferred annotation says str.
+        expected = f1_score(labels, preds, average=None, labels=range(5))  # pyright: ignore[reportArgumentType]
+        np.testing.assert_allclose(
+            train_baseline.f1_per_section(labels, preds, 5), expected
+        )
+        self.assertAlmostEqual(metrics["f1_macro"], float(np.mean(expected)))
+        self.assertAlmostEqual(metrics["accuracy"], accuracy_score(labels, preds))
+
+    def test_smoke_run_writes_best_model_and_metrics(self):
+        from transformers import AutoModelForSequenceClassification
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "news").mkdir()
+            write_splits(root / "news", fixture_splits())
+            prepared = prepare_data.prepare(root / "news", num_sections=3)
+            prepared.save_to_disk(str(root / "prepared"))
+            save_tiny_roberta(
+                root / "model", [r["abstract"] for r in fixture_splits()["train"]]
+            )
+            argv = [
+                "--data-dir", str(root / "prepared"),
+                "--output-dir", str(root / "run"),
+                "--model", str(root / "model"),
+                "--batch-size", "4",
+                "--max-steps", "2",
+            ]  # fmt: skip
+
+            metrics = train_baseline.train(train_baseline.parse_args(argv))
+
+            saved = json.loads((root / "run/metrics.json").read_text())
+            self.assertEqual(saved, metrics)
+            for key in ("dev_accuracy", "dev_f1_macro"):
+                self.assertGreaterEqual(saved[key], 0.0)
+                self.assertLessEqual(saved[key], 1.0)
+            self.assertEqual(set(saved["dev_f1_per_section"]), set(SECTIONS))
+            self.assertRegex(saved["weights_sha256"], "^[0-9a-f]{64}$")
+            self.assertRegex(saved["dataset_sha256"], "^[0-9a-f]{64}$")
+            self.assertEqual(saved["args"]["max_steps"], "2")
+            self.assertFalse((root / "run/checkpoints").exists())
+
+            model = AutoModelForSequenceClassification.from_pretrained(
+                str(root / "run/best_model")
+            )
+            self.assertEqual(model.config.id2label, dict(enumerate(sorted(SECTIONS))))
+
+            with self.assertRaises(FileExistsError):
+                train_baseline.train(train_baseline.parse_args(argv))
 
 
 if __name__ == "__main__":

@@ -45,6 +45,11 @@ include = ["src/**/*.py", "scripts/*.py", "tests/*.py"]
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "UP"]
 
+[tool.ruff.lint.isort]
+# The git-ignored datasets/ data folder would otherwise make the datasets
+# library sort as first-party in checkouts that have the folder.
+known-third-party = ["datasets"]
+
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
