@@ -11,6 +11,7 @@ SPEC = importlib.util.spec_from_file_location(
 assert SPEC is not None and SPEC.loader is not None
 privacy = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(privacy)
+assert privacy.__file__ is not None
 SCANNER = Path(privacy.__file__).resolve()
 
 

@@ -1,17 +1,9 @@
-import json
-import os
 import re
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Dict, List, Tuple, Union
 
-import torch
-from dotenv import load_dotenv
-from numpy.typing import NDArray
 from rich import print
-from torch.utils.data import DataLoader, Dataset
-from tqdm.notebook import tqdm
-from transformers import RobertaModel, RobertaTokenizer
+from transformers import RobertaTokenizer
+
 
 @dataclass
 class ProcessedText:
@@ -20,8 +12,9 @@ class ProcessedText:
     """
 
     cleaned_text: str
-    sentences: List[str]
+    sentences: list[str]
     num_sentences: int
+
 
 class RoBERTaPreprocessor:
     """
@@ -67,7 +60,7 @@ class RoBERTaPreprocessor:
         # Remove leading/trailing whitespace
         return text.strip()
 
-    def text2sentences(self, text: str) -> List[str]:
+    def text2sentences(self, text: str) -> list[str]:
         """
         Split the text into sentences while handling common abbreviations
         """
@@ -110,9 +103,9 @@ class RoBERTaPreprocessor:
         self,
         processed_text: ProcessedText,
         add_special_tokens: bool = True,
-        truncation: bool = True,    
+        truncation: bool = True,
         padding: str = "max_length",
-    ) -> Dict[str, List[int]]:
+    ) -> dict[str, list[int]] | None:
         """
         Encode processed text for RoBERTa.
         """
@@ -130,7 +123,7 @@ class RoBERTaPreprocessor:
             print(f"Error encoding text: {str(e)}")
             return None
 
-    def batch_encode(self, texts: List[str], **kwargs) -> Dict[str, List[List[int]]]:
+    def batch_encode(self, texts: list[str], **kwargs) -> dict[str, list[list[int]]]:
         """
         Process and encode a batch of texts.
         """
