@@ -1,0 +1,3 @@
+# The baseline model reads the abstract alone
+
+The baseline model's input is the abstract, with no headline or body, so it can be checked against the N24News paper's abstract-only result of about 78% macro F1. Every later model is compared against the baseline model, so this choice fixes the reference score. The prepared dataset still keeps the headline and body, so later experiments can add them without preparing the data again. The training recipe is not the paper's: it uses learning rate 2e-5 with linear decay, 6% warmup, and weight decay 0.01, where the paper used plain Adam at a constant 1e-5. If the baseline model lands well below 78%, try the paper's recipe before blaming the model.
