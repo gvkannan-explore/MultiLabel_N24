@@ -2,6 +2,9 @@
 set -euo pipefail
 
 repo_root=$(git rev-parse --show-toplevel)
+# Git exports GIT_DIR to hooks in linked worktrees. Clear the repository
+# variables so the fixture repositories below cannot write into this one.
+unset $(git rev-parse --local-env-vars)
 checker="$repo_root/scripts/check-staged-file-size.sh"
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT

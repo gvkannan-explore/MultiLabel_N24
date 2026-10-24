@@ -39,6 +39,10 @@ Pre-commit blocks environment variables that override this identity.
 - CI checks working and staged files, full history, hook regressions, Ruff lint
   and format, Pyright, offline unit tests, and shell syntax. Every check runs
   even if an earlier one fails, and any failure fails the run.
+- The CI runner and hook regression scripts clear inherited Git variables such
+  as `GIT_DIR`. Git sets these for hooks in linked worktrees, and without the
+  reset the regression scripts' fixture repositories would commit into this
+  repository.
 
 The privacy scanner rejects personal home-directory paths, non-example emails,
 known local identity strings, and private file locations. Findings print rule

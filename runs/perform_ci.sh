@@ -2,6 +2,9 @@
 set -uo pipefail
 repo_root=$(git rev-parse --show-toplevel) || exit 1
 cd "$repo_root" || exit 1
+# Git exports GIT_DIR to hooks in linked worktrees. Clear it so every check
+# below finds the repository from the working directory.
+unset $(git rev-parse --local-env-vars)
 env_dir=${N24_ENV_DIR:-$repo_root/.venv}
 for tool in python ruff pyright; do
     if [[ ! -x "$env_dir/bin/$tool" ]]; then
@@ -23,6 +26,7 @@ run_check 'Staged secret scan' bash scripts/check-secrets.sh --staged
 run_check 'History secret scan' bash scripts/check-secrets.sh
 run_check 'Privacy, secret, and size hook regressions' bash scripts/test-secret-hooks.sh
 run_check 'File size boundary regressions' bash scripts/test-staged-file-size.sh
+run_check 'Hook environment isolation' bash scripts/test-hook-env-isolation.sh
 run_check 'Ruff lint' "$env_dir/bin/ruff" check .
 run_check 'Ruff format' "$env_dir/bin/ruff" format --check .
 run_check 'Pyright' "$env_dir/bin/pyright" --pythonpath "$env_dir/bin/python"
