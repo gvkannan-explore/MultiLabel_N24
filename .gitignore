@@ -162,3 +162,21 @@ cython_debug/
 #.idea/
 envs/*.env
 .DS_Store
+
+# Training outputs
+/runs/*
+!/runs/perform_ci.sh
+runs_modal/
+
+# Local datasets
+/datasets/
+
+# Local decision trail and evidence
+/decisions.tsv
+/.audit/
+/.tools/
+/.privacy-identifiers.json
+.env.*
+*.pem
+*.key
+/agent-transcripts/
