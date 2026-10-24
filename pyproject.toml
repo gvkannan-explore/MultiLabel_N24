@@ -24,6 +24,7 @@ dev = [
 lint = [
     "black>=24.10.0",
     "isort>=5.13.2",
+    "pyright>=1.1.414",
     "ruff>=0.7.3",
 ]
 
@@ -34,3 +35,15 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src*"]
+
+[tool.ruff]
+target-version = "py312"
+include = ["src/**/*.py", "scripts/*.py", "tests/*.py"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+include = ["src", "scripts", "tests"]

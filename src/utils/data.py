@@ -1,15 +1,19 @@
-import pandas as pd
 import json
 from pathlib import Path
-from typing import Union, Tuple, List
+
+import numpy as np
+import pandas as pd
+from pandas.api.extensions import ExtensionArray
 
 
-def load_datajson(data_dir: Union[str, Path]) -> Tuple[List, List, int]:
+def load_datajson(
+    data_dir: str | Path,
+) -> tuple[np.ndarray | ExtensionArray, list[int], int]:
     """
     Load and preprocess the N24News dataset from JSON for the PyTorch dataset
     """
     ## Reading JSON
-    with open(data_dir, "r") as fp:
+    with open(data_dir) as fp:
         data = json.load(fp)
 
     data_df = pd.DataFrame(data)
