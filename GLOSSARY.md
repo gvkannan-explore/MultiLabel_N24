@@ -20,6 +20,24 @@ _Avoid_: old code, brownfield code
 One of the 24 N24News news sections an article belongs to.
 _Avoid_: category, class, label, topic
 
+## Data
+
+**Body**:
+The main text of an article.
+_Avoid_: article (the dataset's field name), content
+
+**Model input**:
+The part of an article the classifier reads. For the baseline model, the abstract.
+_Avoid_: features, text
+
+**Prepared dataset**:
+The cleaned train, dev, and test splits with section labels that the trainer reads.
+_Avoid_: processed data, features
+
+**Dev split**:
+The split used to choose the best epoch during training.
+_Avoid_: validation set, val
+
 ## Guardrails
 
 **Guardrail**:
