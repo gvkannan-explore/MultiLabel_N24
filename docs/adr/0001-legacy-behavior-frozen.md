@@ -1,0 +1,3 @@
+# Legacy behavior is frozen
+
+The baseline branch keeps the legacy code's behavior exactly as it was, including `scripts/news-classifier.py` failing because `n24news.csv` does not exist and `load_datajson` reading an `article` key that the N24News splits do not have. The branch exists to model a brownfield codebase, so fixing these would remove the starting point that later work is measured against. Lint and type fixes may change formatting, imports, and annotations only. Characterization tests in `tests/test_legacy.py` record the current behavior, and the three lines where Pyright wanted a logic change carry narrow `# pyright: ignore` comments in `scripts/news-classifier.py` instead.
