@@ -17,6 +17,6 @@ with os.fdopen(fd, 'w') as stream:
 os.chmod(profile, 0o600)
 PY
 git config --local core.hooksPath .githooks
-git config --local user.name Contributor
-git config --local user.email contributor@users.noreply.github.com
-printf 'Hooks enabled. Future commits use an anonymous repository-local identity. Global Git settings are unchanged.\n'
+git config --local user.name "$(python3 -c 'from scripts.check_privacy import REPO_NAME; print(REPO_NAME)')"
+git config --local user.email "$(python3 -c 'from scripts.check_privacy import REPO_EMAIL; print(REPO_EMAIL)')"
+printf 'Hooks enabled. Future commits use the repository-local GitHub noreply identity. Global Git settings are unchanged.\n'

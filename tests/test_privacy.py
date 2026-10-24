@@ -55,8 +55,8 @@ class PrivacyTests(unittest.TestCase):
                 )
 
             git("init", "-q")
-            git("config", "user.name", "Contributor")
-            git("config", "user.email", "contributor@users.noreply.github.com")
+            git("config", "user.name", privacy.REPO_NAME)
+            git("config", "user.email", privacy.REPO_EMAIL)
             file = root / "note.txt"
             file.write_text("/" + "Users/private-person/project")
             git("add", "note.txt")
@@ -82,8 +82,8 @@ class PrivacyTests(unittest.TestCase):
             root = Path(tmp)
             for args in (
                 ("init", "-q"),
-                ("config", "user.name", "Contributor"),
-                ("config", "user.email", "contributor@users.noreply.github.com"),
+                ("config", "user.name", privacy.REPO_NAME),
+                ("config", "user.email", privacy.REPO_EMAIL),
             ):
                 subprocess.run(["git", *args], cwd=root, check=True)
             command = ["python3", str(SCANNER), "identity"]

@@ -19,7 +19,13 @@ SAFE_EMAIL_DOMAINS = {
     b"example.test",
     b"example.invalid",
 }
-SAFE_EMAILS = {b"contributor" + b"@users.noreply.github.com"}
+# GitHub's private noreply address links commits to the account without
+# publishing a real email. Every commit must use this identity.
+REPO_NAME = "gvkannan-explore"
+REPO_EMAIL = "177444697+gvkannan-explore@users.noreply.github.com"
+# Earlier commits' scripts and docs name the placeholder identity that this one
+# replaced. It identifies no person, so history may keep it.
+SAFE_EMAILS = {REPO_EMAIL.encode(), b"contributor@users.noreply.github.com"}
 PRIVATE_DIRS = {
     "datasets",
     "runs",
@@ -53,7 +59,7 @@ def local_identities(root: Path) -> list[str]:
             if len(v) >= 4
             and v.casefold()
             not in {"root", "runner", "runneradmin", "ubuntu", "nobody"}
-            and v not in {"Contributor", "contributor@users.noreply.github.com"}
+            and v not in {REPO_NAME, REPO_EMAIL}
         }
     )
 
@@ -99,15 +105,9 @@ def scan(root: Path, mode: str, ref: str = "HEAD") -> int:
             metadata = git(
                 "show", "-s", "--format=%an%n%ae%n%cn%n%ce", version
             ).splitlines()
-            expected_email = next(iter(SAFE_EMAILS))
-            if metadata != [
-                b"Contributor",
-                expected_email,
-                b"Contributor",
-                expected_email,
-            ]:
+            if metadata != [REPO_NAME.encode(), REPO_EMAIL.encode()] * 2:
                 print(
-                    f"Privacy blocked: ref={version[:12]} rules=nonanonymous author metadata"
+                    f"Privacy blocked: ref={version[:12]} rules=nonrepository author metadata"
                 )
                 problems += 1
             if findings(git("show", "-s", "--format=%B", version), identities):
@@ -174,11 +174,11 @@ def main() -> int:
     root = Path(os.fsdecode(git("rev-parse", "--show-toplevel")).strip())
     os.chdir(root)
     if args.mode == "identity":
-        expected = b"Contributor <" + next(iter(SAFE_EMAILS)) + b"> "
+        expected = f"{REPO_NAME} <{REPO_EMAIL}> ".encode()
         for variable in ("GIT_AUTHOR_IDENT", "GIT_COMMITTER_IDENT"):
             if not git("var", variable).startswith(expected):
                 print(
-                    "Privacy blocked: use the anonymous repository identity from bash scripts/setup-hooks.sh."
+                    "Privacy blocked: use the repository identity from bash scripts/setup-hooks.sh."
                 )
                 return 1
         return 0

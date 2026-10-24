@@ -17,8 +17,8 @@ cp "$repo_root/.githooks/pre-commit" "$repo_root/.githooks/pre-push" "$repo_root
 ln -s "$repo_root/.tools/bin/gitleaks" "$fixture/.tools/bin/gitleaks"
 cd "$fixture"
 git init --quiet
-git config user.name Contributor
-git config user.email contributor@users.noreply.github.com
+git config user.name gvkannan-explore
+git config user.email 177444697+gvkannan-explore@users.noreply.github.com
 git config core.hooksPath .githooks
 printf 'A clean file\n' > clean.txt
 git add clean.txt

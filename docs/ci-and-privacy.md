@@ -21,9 +21,13 @@ its GitHub actions to commit SHAs, has read-only repository permissions, and use
 the locked Python environment.
 
 `setup-hooks.sh` saves the local Git identity and machine username in the ignored
-`.privacy-identifiers.json` file with owner-only permissions. It then sets a
-repository-local anonymous author and committer, `Contributor
-<contributor@users.noreply.github.com>`. Global Git settings are unchanged.
+`.privacy-identifiers.json` file with owner-only permissions. It then sets the
+repository-local author and committer to the `REPO_NAME` and `REPO_EMAIL`
+constants in `scripts/check_privacy.py`: the owner's GitHub login and private
+noreply address. GitHub links these commits to the owner's account and counts
+them as contributions, and the real email stays private (see
+[ADR 0003](adr/0003-github-noreply-identity.md)). Global Git settings are
+unchanged.
 Pre-commit blocks environment variables that override this identity.
 
 ## Gates
@@ -50,7 +54,8 @@ names, short commit IDs, and file-path hashes instead of the matched data.
 Gitleaks prints redacted results. The privacy hook rejects force-staged datasets,
 run outputs, audit logs, environment files, and private keys.
 
-The only allowed emails are the anonymous contributor address and the reserved
+The only allowed emails are the repository's noreply address, the placeholder
+address that earlier commits name in their scripts and docs, and the reserved
 example domains used in test fixtures. Names are matched against locally known
 identifiers, not detected in general. CI cannot read the ignored identifier
 file, so names in prose still need review there.
@@ -70,7 +75,7 @@ still covered by the privacy and secret scans.
 
 History was rewritten before guardrails were added (see
 [ADR 0002](adr/0002-history-rewritten-before-baseline.md)). Every commit uses the
-anonymous identity, and the full-history privacy scan has no allowlist. Hooks
+repository identity, and the full-history privacy scan has no allowlist. Hooks
 protect new work but can be bypassed, so make the CI check required in branch
 protection.
 

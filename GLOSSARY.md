@@ -30,9 +30,9 @@ _Avoid_: gate, policy
 A personal path, real email, known local identity, or private file in Git content or metadata.
 _Avoid_: PII hit, leak
 
-**Anonymous identity**:
-The shared `Contributor` author and committer used for every commit.
-_Avoid_: bot user, placeholder author
+**Repository identity**:
+The owner's GitHub login and private noreply address, used as author and committer for every commit.
+_Avoid_: anonymous identity, bot user, placeholder author
 
 **History rewrite**:
 Replacing past commits to remove privacy findings.
