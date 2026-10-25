@@ -17,7 +17,12 @@ run_check() {
     local name="$1"
     shift
     printf '\n%s\n' "$name"
-    "$@" || failed=1
+    if "$@"; then
+        printf '✅ %s\n' "$name"
+    else
+        printf '❌ %s\n' "$name"
+        failed=1
+    fi
 }
 run_check 'Working-file privacy scan' "$env_dir/bin/python" scripts/check_privacy.py worktree
 run_check 'Staged privacy scan' "$env_dir/bin/python" scripts/check_privacy.py staged
@@ -34,4 +39,7 @@ run_check 'Offline tests (no training)' env HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE
 while IFS= read -r -d '' script; do
     run_check "Shell syntax: $script" bash -n "$script"
 done < <(find scripts runs .githooks -type f \( -name '*.sh' -o -name 'pre-commit' -o -name 'pre-push' -o -name 'commit-msg' \) -print0)
+if (( failed == 0 )); then
+    printf '\n✅✅✅ CI check successfully completed\n'
+fi
 exit "$failed"
