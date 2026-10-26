@@ -164,8 +164,7 @@ envs/*.env
 .DS_Store
 
 # Training outputs
-/runs/*
-!/runs/perform_ci.sh
+/experiment_runs/
 runs_modal/
 
 # Local datasets
@@ -180,3 +179,4 @@ runs_modal/
 *.pem
 *.key
 /agent-transcripts/
+experiment_runs/*

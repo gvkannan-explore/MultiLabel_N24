@@ -28,7 +28,7 @@ REPO_EMAIL = "177444697+gvkannan-explore@users.noreply.github.com"
 SAFE_EMAILS = {REPO_EMAIL.encode(), b"contributor@users.noreply.github.com"}
 PRIVATE_DIRS = {
     "datasets",
-    "runs",
+    "experiment_runs",
     "runs_modal",
     ".audit",
     "agent-transcripts",
@@ -81,8 +81,6 @@ def findings(data: bytes, identities: list[str]) -> set[str]:
 
 
 def private_path(path: str) -> bool:
-    if path == "runs/perform_ci.sh":
-        return False
     parts = Path(path).parts
     return (
         bool(set(parts) & PRIVATE_DIRS)

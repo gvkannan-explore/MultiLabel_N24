@@ -13,7 +13,7 @@ worktree, so setting up one worktree does not cover another.
 uv sync --locked --group lint
 bash scripts/install-gitleaks.sh
 bash scripts/setup-hooks.sh
-bash runs/perform_ci.sh
+bash bins/ci_tasks/perform_ci.sh
 ```
 
 The Gitleaks installer pins a release and checks its published checksum. CI pins

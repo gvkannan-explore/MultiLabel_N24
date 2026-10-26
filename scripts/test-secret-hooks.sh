@@ -8,8 +8,8 @@ unset $(git rev-parse --local-env-vars)
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
 fixture="$tmp_dir/repo"
-mkdir -p "$fixture/scripts" "$fixture/.githooks" "$fixture/.tools/bin" "$fixture/runs"
-printf '#!/usr/bin/env bash\nexit "${FAKE_CI_STATUS:-0}"\n' > "$fixture/runs/perform_ci.sh"
+mkdir -p "$fixture/scripts" "$fixture/.githooks" "$fixture/.tools/bin" "$fixture/bins/ci_tasks"
+printf '#!/usr/bin/env bash\nexit "${FAKE_CI_STATUS:-0}"\n' > "$fixture/bins/ci_tasks/perform_ci.sh"
 cp "$repo_root/scripts/check-secrets.sh" "$fixture/scripts/"
 cp "$repo_root/scripts/check-staged-file-size.sh" "$fixture/scripts/"
 cp "$repo_root/scripts/check_privacy.py" "$fixture/scripts/"

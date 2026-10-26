@@ -38,6 +38,36 @@ _Avoid_: processed data, features
 The split used to choose the best epoch during training.
 _Avoid_: validation set, val
 
+**Test split**:
+The held-out split that only the eval harness reads, after training is finished.
+_Avoid_: holdout, eval set
+
+## Evaluation
+
+**Eval harness**:
+The code that scores a trained run on the test split and writes its results file. Models never score themselves.
+_Avoid_: evaluator, scorer
+
+**Results file**:
+The JSON the eval harness writes for one run: eval version, test split hash, model identity, test metrics, repeatability numbers, and per-article predictions.
+_Avoid_: report, scores
+
+**Eval version**:
+An integer that changes whenever the eval harness or test split changes. Results with different eval versions are never compared.
+_Avoid_: harness version, schema version
+
+**Deployment gate**:
+The post-training check that reads a results file and pre-registered criteria and decides whether the run may be deployed.
+_Avoid_: gate (that word alone means a guardrail), release check
+
+**Repeatability**:
+Two prediction passes over the test split, each with a fresh model load, give the same sections and logits within a tolerance.
+_Avoid_: determinism, stability
+
+**Reproducibility**:
+A run can be rebuilt from what it recorded: its weights and dataset hashes still match, and it ran from a clean git commit.
+_Avoid_: provenance, traceability
+
 ## Guardrails
 
 **Guardrail**:

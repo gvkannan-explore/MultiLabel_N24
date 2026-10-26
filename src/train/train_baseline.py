@@ -2,7 +2,7 @@
 
 Keeps the epoch with the best macro F1 on the dev split, then writes
 best_model/ and metrics.json to the output directory. The test split is not
-used. A Modal function can call train(parse_args([...])) directly.
+used. src/train/modal_train.py runs it on a Modal GPU.
 """
 
 import argparse
@@ -86,7 +86,9 @@ def dataset_sha256(data_dir: Path) -> str:
     return digest.hexdigest()
 
 
-def train(args: argparse.Namespace) -> dict:
+def train(args: argparse.Namespace, commit: str | None) -> dict:
+    """Train and write the run. `commit` is recorded in metrics.json; the
+    caller passes it because a Modal container has no git checkout."""
     output_dir = Path(args.output_dir)
     # Refuse to overwrite an earlier run.
     output_dir.mkdir(parents=True, exist_ok=False)
@@ -178,9 +180,11 @@ def train(args: argparse.Namespace) -> dict:
             for section, score in zip(sections, per_section, strict=True)
         },
         "args": {key: str(value) for key, value in vars(args).items()},
-        "git_commit": git_commit(),
+        "git_commit": commit,
         "dataset_sha256": dataset_sha256(Path(args.data_dir)),
         "weights_sha256": sha256_file(best_dir / "model.safetensors"),
+        # One entry per logging step and per evaluation: the training curves.
+        "log_history": trainer.state.log_history,
     }
     (output_dir / "metrics.json").write_text(json.dumps(metrics, indent=2) + "\n")
     print(
@@ -193,7 +197,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path, default=Path("datasets/prepared"))
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--model", default="roberta-base")
+    parser.add_argument("--model", default="FacebookAI/roberta-base")
     parser.add_argument("--epochs", type=float, default=3)
     parser.add_argument("--lr", type=float, default=2e-5)
     parser.add_argument("--batch-size", type=int, default=32)
@@ -209,7 +213,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main() -> None:
-    train(parse_args())
+    train(parse_args(), git_commit())
 
 
 if __name__ == "__main__":

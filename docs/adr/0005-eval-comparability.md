@@ -1,0 +1,3 @@
+# Results are compared only within one eval version and test split
+
+A results file records the eval version and the sha256 of the test split it was scored on, and the deployment gate refuses (exit code 2) to judge a results file whose eval version or test split hash differs from the ones pinned in `gate/criteria.toml`. Without this, a change to the eval harness or a re-prepared test split would silently move every score, and a model could pass the gate because the ruler changed rather than the model. When the harness or the test split must change, bump `EVAL_VERSION` in `src/eval/run.py`, update the criteria, and rerun the harness for every model, the baseline model included. The cost is a rerun per model on every eval change, which is cheap next to training.
