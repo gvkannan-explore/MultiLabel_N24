@@ -2469,6 +2469,7 @@ source = { editable = "." }
 dependencies = [
     { name = "accelerate" },
     { name = "datasets" },
+    { name = "fastapi" },
     { name = "jinja2" },
     { name = "modal" },
     { name = "numpy" },
@@ -2480,6 +2481,7 @@ dependencies = [
     { name = "torch" },
     { name = "tqdm" },
     { name = "transformers" },
+    { name = "uvicorn" },
 ]
 
 [package.dev-dependencies]
@@ -2502,6 +2504,7 @@ lint = [
 requires-dist = [
     { name = "accelerate", specifier = ">=1.15.0" },
     { name = "datasets", specifier = ">=5.1.0" },
+    { name = "fastapi", specifier = ">=0.162.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "modal", specifier = ">=1.6.2" },
     { name = "numpy", specifier = ">=2.5.4" },
@@ -2513,6 +2516,7 @@ requires-dist = [
     { name = "torch", specifier = ">=2.14.1" },
     { name = "tqdm", specifier = ">=4.70.1" },
     { name = "transformers", specifier = ">=5.20.2" },
+    { name = "uvicorn", specifier = ">=0.54.0" },
 ]
 
 [package.metadata.requires-dev]
