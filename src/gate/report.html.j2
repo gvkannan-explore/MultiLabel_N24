@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Deployment gate: {{ results.run }}</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 70rem; margin: 2rem auto; padding: 0 1rem; color: #1f2328; }
+  .verdict { padding: 1rem 1.25rem; border-radius: 8px; font-size: 1.4rem; font-weight: 700; }
+  .pass { background: #dafbe1; color: #116329; }
+  .fail { background: #ffebe9; color: #a40e26; }
+  table { border-collapse: collapse; width: 100%; margin: 0.5rem 0 1.5rem; }
+  th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #d0d7de; vertical-align: top; }
+  th { background: #f6f8fa; }
+  td.num { font-variant-numeric: tabular-nums; }
+  code { font-size: 0.9em; }
+</style>
+</head>
+<body>
+<h1>Deployment gate: {{ results.run }}</h1>
+<p class="verdict {{ 'pass' if deployable else 'fail' }}">
+  {{ 'DEPLOYABLE' if deployable else 'NOT DEPLOYABLE' }}
+  ({{ checks | selectattr('passed') | list | length }}/{{ checks | length }} checks pass)
+</p>
+<p>
+  Judged <a href="{{ links[results_path] }}">{{ results_path.name }}</a>
+  against the pre-registered <a href="{{ links[criteria_path] }}">{{ criteria_path.name }}</a>
+  at eval version {{ results.eval_version }}.
+</p>
+
+<h2>Claims and falsifiers</h2>
+<table>
+  <tr><th>Group</th><th>Claim</th><th>Falsified if</th><th>Observed</th><th>Evidence</th><th>Verdict</th></tr>
+  {% for check in checks %}
+  <tr>
+    <td>{{ check.group }}</td>
+    <td>{{ check.claim }}</td>
+    <td>{{ check.falsified_if }}</td>
+    <td class="num">{{ check.observed }}</td>
+    <td><a href="{{ links[check.evidence] }}">{{ check.evidence.name }}</a></td>
+    <td class="{{ 'pass' if check.passed else 'fail' }}">{{ 'pass' if check.passed else 'fail' }}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+<h2>Test F1 per section</h2>
+<table>
+  <tr><th>Section</th><th>F1</th><th>Minimum</th></tr>
+  {% for section, f1 in results.test_f1_per_section | dictsort(by='value') %}
+  <tr class="{{ '' if f1 >= criteria.accuracy.min_section_f1 else 'fail' }}">
+    <td>{{ section }}</td><td class="num">{{ '%.4f' | format(f1) }}</td><td class="num">{{ criteria.accuracy.min_section_f1 }}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+<h2>Provenance</h2>
+<table>
+  <tr><th>Run directory</th><td><code>{{ results.run_dir }}</code></td></tr>
+  <tr><th>Git commit</th><td><code>{{ results.git_commit or 'none recorded' }}</code></td></tr>
+  <tr><th>Test split sha256</th><td><code>{{ results.test_split_sha256 }}</code></td></tr>
+  <tr><th>Weights sha256 (recorded / recomputed)</th><td><code>{{ results.weights_sha256.recorded }}</code><br><code>{{ results.weights_sha256.recomputed }}</code></td></tr>
+  <tr><th>Dataset sha256 (recorded / recomputed)</th><td><code>{{ results.dataset_sha256.recorded }}</code><br><code>{{ results.dataset_sha256.recomputed }}</code></td></tr>
+  <tr><th>Test articles</th><td>{{ results.predictions | length }}</td></tr>
+  <tr><th>torch / transformers</th><td>{{ results.torch_version }} / {{ results.transformers_version }}</td></tr>
+</table>
+</body>
+</html>

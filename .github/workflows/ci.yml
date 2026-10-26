@@ -25,4 +25,4 @@ jobs:
           enable-cache: true
       - run: uv sync --locked --group lint
       - run: bash scripts/install-gitleaks.sh
-      - run: bash runs/perform_ci.sh
+      - run: bash bins/ci_tasks/perform_ci.sh

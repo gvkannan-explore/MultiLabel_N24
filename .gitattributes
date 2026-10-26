@@ -1,0 +1,3 @@
+# Training runs write these files; bins/ci_tasks/train_modal.sh copies them unchanged.
+# Their log_history can pass the 20,000-byte limit for maintained files.
+metrics/*.json linguist-generated=true

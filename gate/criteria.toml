@@ -1,0 +1,18 @@
+# Pre-registered deployment gate criteria. Fill these in and commit them
+# before scoring a model on the test split, so they provably predate results.
+# Checked by: uv run python -m src.gate.report results/<run>.json
+
+# Must equal EVAL_VERSION in src/eval/run.py.
+eval_version = 1
+# sha256 of datasets/prepared/test. Pin it with the command in the README.
+test_split_sha256 = ""
+
+[accuracy]
+# Drafts: the N24News paper reports about 0.78 abstract-only macro F1 (ADR 0004).
+min_test_f1_macro = 0.75
+min_test_accuracy = 0.75
+min_section_f1 = 0.40
+
+[repeatability]
+# Largest allowed logit difference between two prediction passes on CPU.
+logits_atol = 1e-5

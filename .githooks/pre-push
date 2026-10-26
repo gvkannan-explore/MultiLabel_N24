@@ -10,6 +10,6 @@ while read -r local_ref local_oid remote_ref remote_oid; do
     bash "$repo_root/scripts/check-secrets.sh" "--log-opts=$local_oid" || failed=1
 done
 if [[ "$has_commits" -eq 1 ]]; then
-    bash "$repo_root/runs/perform_ci.sh" || failed=1
+    bash "$repo_root/bins/ci_tasks/perform_ci.sh" || failed=1
 fi
 exit "$failed"

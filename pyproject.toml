@@ -7,11 +7,16 @@ requires-python = ">=3.12"
 dependencies = [
     "accelerate>=1.15.0",
     "datasets>=5.1.0",
+    "jinja2>=3.1.6",
+    "modal>=1.6.2",
     "numpy>=2.5.4",
     "pandas>=3.1.0",
     "pillow>=13.0.0",
+    "pydantic>=2.14.1",
+    "rich>=15.0.0",
     "scikit-learn>=1.9.1",
     "torch>=2.14.1",
+    "tqdm>=4.70.1",
     "transformers>=5.20.2",
 ]
 
@@ -19,8 +24,9 @@ dependencies = [
 dev = [
     "ipykernel>=7.4.0",
     "jupyter>=1.1.1",
+    "mlflow>=3.17.2",
+    "modal>=1.6.2",
     "python-dotenv>=1.2.4",
-    "rich>=15.0.0",
     "tqdm>=4.70.1",
 ]
 lint = [

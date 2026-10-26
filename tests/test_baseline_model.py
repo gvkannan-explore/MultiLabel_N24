@@ -3,25 +3,13 @@
 They run offline on tiny synthetic split files with three sections.
 """
 
-import importlib.util
 import json
 import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def load_script(name: str):
-    spec = importlib.util.spec_from_file_location(name, ROOT / f"scripts/{name}.py")
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-prepare_data = load_script("prepare_data")
-train_baseline = load_script("train_baseline")
+from src.data import prepare_data
+from src.train import train_baseline
 
 SECTIONS = ["Travel", "Books", "Sports"]
 
@@ -62,8 +50,10 @@ class PrepareDataTests(unittest.TestCase):
         self.assertEqual(train.column_names, ["headline", "abstract", "body", "label"])
         names = train.features["label"].names
         self.assertEqual(names, sorted(SECTIONS))
-        for row, source in zip(train, fixture_splits()["train"], strict=True):
-            self.assertEqual(names[row["label"]], source["section"])
+        for label, source in zip(
+            train["label"], fixture_splits()["train"], strict=True
+        ):
+            self.assertEqual(names[label], source["section"])
 
     def test_collapses_whitespace_and_keeps_numbers(self):
         row = self.prepare(fixture_splits())["dev"][0]
@@ -165,10 +155,11 @@ class TrainBaselineTests(unittest.TestCase):
                 "--max-steps", "2",
             ]  # fmt: skip
 
-            metrics = train_baseline.train(train_baseline.parse_args(argv))
+            metrics = train_baseline.train(train_baseline.parse_args(argv), "abc123")
 
             saved = json.loads((root / "run/metrics.json").read_text())
             self.assertEqual(saved, metrics)
+            self.assertEqual(saved["git_commit"], "abc123")
             for key in ("dev_accuracy", "dev_f1_macro"):
                 self.assertGreaterEqual(saved[key], 0.0)
                 self.assertLessEqual(saved[key], 1.0)
@@ -176,6 +167,7 @@ class TrainBaselineTests(unittest.TestCase):
             self.assertRegex(saved["weights_sha256"], "^[0-9a-f]{64}$")
             self.assertRegex(saved["dataset_sha256"], "^[0-9a-f]{64}$")
             self.assertEqual(saved["args"]["max_steps"], "2")
+            self.assertIn("eval_f1_macro", saved["log_history"][0])
             self.assertFalse((root / "run/checkpoints").exists())
 
             model = AutoModelForSequenceClassification.from_pretrained(
@@ -184,7 +176,7 @@ class TrainBaselineTests(unittest.TestCase):
             self.assertEqual(model.config.id2label, dict(enumerate(sorted(SECTIONS))))
 
             with self.assertRaises(FileExistsError):
-                train_baseline.train(train_baseline.parse_args(argv))
+                train_baseline.train(train_baseline.parse_args(argv), "abc123")
 
 
 if __name__ == "__main__":
