@@ -6,7 +6,7 @@ comes from the n24-data volume and each run is written to the n24-runs volume.
 One-time setup:
     uv run modal setup
     uv run modal volume create n24-data
-    uv run modal volume put n24-data datasets/prepared /prepared
+    uv run modal volume put n24-data datasets/prepared /data/prepared
 
 Runs:
     uv run modal run -m src.train.modal_train --name smoke-1 --args "--max-steps 5"

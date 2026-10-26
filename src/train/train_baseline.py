@@ -27,7 +27,7 @@ from transformers import (
     set_seed,
 )
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def f1_per_section(labels: np.ndarray, preds: np.ndarray, n: int) -> np.ndarray:
