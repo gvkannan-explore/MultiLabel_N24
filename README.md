@@ -129,7 +129,8 @@ Use a GPU for the full run. How a run works:
   uncommitted code ends in `-dirty`
 - `dataset_sha256`: a hash of every file in the prepared dataset except
   `state.json`, which the datasets library rewrites with a random fingerprint
-  on each save
+  on each save, and the `cache-*.arrow` files that each training run's
+  tokenization adds next to the data
 - `weights_sha256`: the hash of `best_model/model.safetensors`
 - `log_history`: the trainer's loss and dev scores at each logging step and
   evaluation, which become the training curves
