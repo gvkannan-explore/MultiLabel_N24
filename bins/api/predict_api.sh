@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Send abstracts to a running inference API and print a section for each.
-#   bash bins/ci_tasks/predict_api.sh ["abstract" ...]
-#   PORT=8765 bash bins/ci_tasks/predict_api.sh "The team won the final."
-# Start the API first with bins/ci_tasks/serve_api.sh.
+#   bash bins/api/predict_api.sh ["abstract" ...]
+#   PORT=8765 bash bins/api/predict_api.sh "The team won the final."
+# Start the API first with bins/api/serve_api.sh.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 url="http://127.0.0.1:${PORT:-8000}/predict"

@@ -3,11 +3,11 @@
 # import it into the local MLflow store, and stage it. Smoke runs skip this
 # script and use the plain modal run command in src/train/modal_train.py.
 #
-# Usage: bash bins/ci_tasks/train_modal.sh <name> ["extra trainer flags"]
-#   bash bins/ci_tasks/train_modal.sh roberta-lr3e-5 "--lr 3e-5"
+# Usage: bash bins/train/train_modal.sh <name> ["extra trainer flags"]
+#   bash bins/train/train_modal.sh roberta-lr3e-5 "--lr 3e-5"
 set -euo pipefail
 if (( $# < 1 || $# > 2 )); then
-    echo "Usage: bash bins/ci_tasks/train_modal.sh <name> [\"extra trainer flags\"]" >&2
+    echo "Usage: bash bins/train/train_modal.sh <name> [\"extra trainer flags\"]" >&2
     exit 2
 fi
 name="$1"
