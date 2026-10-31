@@ -77,10 +77,15 @@ def sha256_file(path: Path) -> str:
 
 def dataset_sha256(data_dir: Path) -> str:
     """Hash the prepared dataset's files. state.json is skipped because the
-    datasets library writes a random fingerprint into it on every save."""
+    datasets library writes a random fingerprint into it on every save, and
+    cache-*.arrow because each training run's tokenization adds one."""
     digest = hashlib.sha256()
     for path in sorted(data_dir.rglob("*")):
-        if path.is_file() and path.name != "state.json":
+        if (
+            path.is_file()
+            and path.name != "state.json"
+            and not path.match("cache-*.arrow")
+        ):
             digest.update(path.relative_to(data_dir).as_posix().encode())
             digest.update(sha256_file(path).encode())
     return digest.hexdigest()

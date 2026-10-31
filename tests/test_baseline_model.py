@@ -179,9 +179,13 @@ class TrainBaselineTests(unittest.TestCase):
                 "--max-steps", "2",
             ]  # fmt: skip
 
+            before = train_baseline.dataset_sha256(root / "prepared")
             metrics = train_baseline.train(train_baseline.parse_args(argv), "abc123")
 
             saved = json.loads((root / "run/metrics.json").read_text())
+            # Training's tokenizer cache files must not change the hash.
+            self.assertTrue(list((root / "prepared").rglob("cache-*.arrow")))
+            self.assertEqual(saved["dataset_sha256"], before)
             self.assertEqual(saved, metrics)
             self.assertEqual(saved["git_commit"], "abc123")
             for key in ("dev_accuracy", "dev_f1_macro"):
