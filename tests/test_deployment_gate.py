@@ -12,14 +12,8 @@ from pathlib import Path
 
 from datasets import load_from_disk
 from sklearn.metrics import accuracy_score, f1_score
-from test_baseline_model import (
-    SECTIONS,
-    fixture_splits,
-    save_tiny_roberta,
-    write_splits,
-)
+from test_baseline_model import SECTIONS, make_tiny_run
 
-from src.data import prepare_data
 from src.eval import run
 from src.gate import report
 from src.train import train_baseline
@@ -59,23 +53,7 @@ class DeploymentGateTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls._tmp = tempfile.TemporaryDirectory()
         cls.root = Path(cls._tmp.name)
-        (cls.root / "news").mkdir()
-        write_splits(cls.root / "news", fixture_splits())
-        prepared = prepare_data.prepare(cls.root / "news", num_sections=len(SECTIONS))
-        cls.data_dir = cls.root / "prepared"
-        prepared.save_to_disk(str(cls.data_dir))
-        save_tiny_roberta(
-            cls.root / "model", [r["abstract"] for r in fixture_splits()["train"]]
-        )
-        cls.run_dir = cls.root / "run"
-        argv = [
-            "--data-dir", str(cls.data_dir),
-            "--output-dir", str(cls.run_dir),
-            "--model", str(cls.root / "model"),
-            "--batch-size", "4",
-            "--max-steps", "2",
-        ]  # fmt: skip
-        train_baseline.train(train_baseline.parse_args(argv), "abc123")
+        cls.data_dir, cls.run_dir = make_tiny_run(cls.root)
         run.evaluate(cls.run_dir, cls.data_dir, cls.root / "results")
         cls.results_path = cls.root / "results/run.json"
         cls.split_sha256 = train_baseline.dataset_sha256(cls.data_dir / "test")
