@@ -5,7 +5,7 @@
 # Must equal EVAL_VERSION in src/eval/run.py.
 eval_version = 1
 # sha256 of datasets/prepared/test. Pin it with the command in the README.
-test_split_sha256 = ""
+test_split_sha256 = "a801fdcfe3e59bee1fd7fb7f4cf2a6c0acccf905e46f5d7a1ac0b2b5aa8b5ab0"
 
 [accuracy]
 # Drafts: the N24News paper reports about 0.78 abstract-only macro F1 (ADR 0004).
