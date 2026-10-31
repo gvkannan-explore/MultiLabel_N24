@@ -180,3 +180,5 @@ runs_modal/
 *.key
 /agent-transcripts/
 experiment_runs/*
+data/*
+notebooks/inference_api/*

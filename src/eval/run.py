@@ -18,7 +18,12 @@ import transformers
 from datasets import DatasetDict, load_from_disk
 from pydantic import BaseModel
 from rich import print
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import (
+    AutoModelForSequenceClassification,
+    AutoTokenizer,
+    PreTrainedModel,
+    PreTrainedTokenizerBase,
+)
 
 from src.train.train_baseline import dataset_sha256, f1_per_section, sha256_file
 
@@ -63,11 +68,21 @@ class Results(BaseModel):
     transformers_version: str
 
 
-def predict(model_dir: Path, abstracts: list[str], max_length: int) -> np.ndarray:
-    """Logits for each abstract, from a fresh load of the model."""
+def load_model(model_dir: Path) -> tuple[PreTrainedTokenizerBase, PreTrainedModel]:
+    """Tokenizer and model from model_dir, in eval mode."""
     tokenizer = AutoTokenizer.from_pretrained(str(model_dir))
     model = AutoModelForSequenceClassification.from_pretrained(str(model_dir))
     model.eval()
+    return (tokenizer, model)
+
+
+def compute_logits(
+    tokenizer: PreTrainedTokenizerBase,
+    model: PreTrainedModel,
+    abstracts: list[str],
+    max_length: int,
+) -> np.ndarray:
+    """Logits for each abstract: BATCH_SIZE batches, truncation, padding, inference_mode."""
     batches = []
     with torch.inference_mode():
         for start in range(0, len(abstracts), BATCH_SIZE):
@@ -80,6 +95,14 @@ def predict(model_dir: Path, abstracts: list[str], max_length: int) -> np.ndarra
             )
             batches.append(model(**inputs).logits.numpy())
     return np.concatenate(batches)
+
+
+def predict(model_dir: Path, abstracts: list[str], max_length: int) -> np.ndarray:
+    """Logits from a fresh load of the model."""
+    tokenizer, model = load_model(model_dir=model_dir)
+    return compute_logits(
+        tokenizer=tokenizer, model=model, abstracts=abstracts, max_length=max_length
+    )
 
 
 def evaluate(run_dir: Path, data_dir: Path, results_dir: Path) -> Results:

@@ -113,6 +113,30 @@ def save_tiny_roberta(directory: Path, texts: list[str]) -> None:
     tokenizer.save_pretrained(str(directory))
 
 
+def make_tiny_run(root: Path) -> tuple[Path, Path]:
+    """Prepare the fixture splits under root and train a tiny RoBERTa on them
+    for two steps. Returns the prepared dataset's directory and the run's."""
+    (root / "news").mkdir()
+    write_splits(root / "news", fixture_splits())
+    data_dir = root / "prepared"
+    prepare_data.prepare(root / "news", num_sections=len(SECTIONS)).save_to_disk(
+        str(data_dir)
+    )
+    save_tiny_roberta(
+        root / "model", [r["abstract"] for r in fixture_splits()["train"]]
+    )
+    run_dir = root / "run"
+    argv = [
+        "--data-dir", str(data_dir),
+        "--output-dir", str(run_dir),
+        "--model", str(root / "model"),
+        "--batch-size", "4",
+        "--max-steps", "2",
+    ]  # fmt: skip
+    train_baseline.train(train_baseline.parse_args(argv), "abc123")
+    return data_dir, run_dir
+
+
 class TrainBaselineTests(unittest.TestCase):
     def test_metrics_match_scikit_learn(self):
         import numpy as np
