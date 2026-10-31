@@ -67,7 +67,7 @@ dataset that the trainer and the eval harness read.
 ```bash
 uv run python -m src.data.prepare_data --input-dir datasets/news --output-dir datasets/prepared
 # or, deleting any earlier datasets/prepared first:
-bash bins/ci_tasks/data_prep.sh
+bash bins/data/data_prep.sh
 ```
 
 - The sections are the sorted set of sections in the train split. There must
@@ -139,7 +139,7 @@ The recipe differs from the N24News paper's, which reports about 78% macro F1
 from abstracts alone; see ADR 0004 before you change it.
 
 **Smoke runs.** `--max-steps 5` stops after five steps, scoring and saving at
-that step instead of at each epoch. `bash bins/ci_tasks/smoke_test.sh` does
+that step instead of at each epoch. `bash bins/train/smoke_test.sh` does
 this into `experiment_runs/smoke-1` to check that the trainer runs end to end.
 
 ## Training on Modal
@@ -164,11 +164,11 @@ uv run modal volume create n24-data
 uv run modal volume put n24-data datasets/prepared /prepared
 ```
 
-A real experiment goes through `bins/ci_tasks/train_modal.sh`, which trains
+A real experiment goes through `bins/train/train_modal.sh`, which trains
 and publishes the run in one step:
 
 ```bash
-bash bins/ci_tasks/train_modal.sh roberta-lr3e-5 "--lr 3e-5"
+bash bins/train/train_modal.sh roberta-lr3e-5 "--lr 3e-5"
 ```
 
 It trains, copies the run's `metrics.json` to `metrics/<name>.json`, imports
@@ -330,7 +330,11 @@ src/
   eval/          eval harness
   gate/          deployment gate and its HTML template
   preprocess/, utils/   legacy code
-bins/ci_tasks/   shell entry points: CI, data preparation, smoke test, Modal training
+bins/            shell entry points, by purpose:
+  ci_tasks/      the CI check, run locally and by GitHub Actions
+  data/          data preparation
+  train/         local smoke test and Modal training
+  api/           serve, query, and smoke-test the inference API
 scripts/         guardrail tooling, setup scripts, and the legacy news-classifier.py
 gate/            criteria.toml, and reports/ written by the deployment gate
 metrics/         metrics.json of each published Modal run

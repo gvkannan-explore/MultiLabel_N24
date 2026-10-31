@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Start the inference API on a trained run, check its responses, and stop it.
 # Exits non-zero on the first failed check.
-#   bash bins/ci_tasks/api_smoke_test.sh [run-dir] [port]
+#   bash bins/api/api_smoke_test.sh [run-dir] [port]
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 run_dir=${1:-experiment_runs/smoke-1}
