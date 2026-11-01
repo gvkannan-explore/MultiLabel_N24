@@ -23,6 +23,7 @@ def fixture_metrics(output_dir: str) -> dict[str, object]:
         "dev_f1_per_section": {"Art & Design": 0.75, "Books": 0.25},
         "args": {"output_dir": output_dir, "lr": "2e-05", "seed": "42"},
         "git_commit": "abc123",
+        "gpu": "NVIDIA L4",
         "dataset_sha256": "d" * 64,
         "weights_sha256": "w" * 64,
         "log_history": [
@@ -55,9 +56,21 @@ class ImportRunTests(unittest.TestCase):
         self.assertEqual(run.data.params["lr"], "2e-05")
         self.assertEqual(run.data.tags["git_commit"], "abc123")
         self.assertEqual(run.data.tags["weights_sha256"], "w" * 64)
+        self.assertEqual(run.data.tags["gpu"], "NVIDIA L4")
         self.assertEqual(run.data.metrics["dev_f1_macro"], 0.5)
         self.assertEqual(run.data.metrics["dev_f1/Art and Design"], 0.75)
         self.assertEqual(run.data.metrics["dev_f1/Books"], 0.25)
+
+    def test_imports_a_run_recorded_before_the_gpu_field(self):
+        path = self.root / "old-run.json"
+        metrics = fixture_metrics("/news24-runs/old-run")
+        del metrics["gpu"]
+        path.write_text(json.dumps(metrics))
+
+        run_id = import_run.import_run(path)
+
+        assert run_id is not None
+        self.assertEqual(mlflow.get_run(run_id).data.tags["gpu"], "None")
 
     def test_logs_curves_by_step(self):
         run_id = import_run.import_run(self.write_metrics("roberta-test"))

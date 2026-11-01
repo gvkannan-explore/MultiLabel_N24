@@ -188,6 +188,8 @@ def train(args: argparse.Namespace, commit: str | None) -> dict:
         },
         "args": {key: str(value) for key, value in vars(args).items()},
         "git_commit": commit,
+        # Modal picks the first free GPU from a list, so record which one ran.
+        "gpu": torch.cuda.get_device_name() if torch.cuda.is_available() else None,
         "dataset_sha256": dataset_sha256(Path(args.data_dir)),
         "weights_sha256": sha256_file(best_dir / "model.safetensors"),
         # One entry per logging step and per evaluation: the training curves.
