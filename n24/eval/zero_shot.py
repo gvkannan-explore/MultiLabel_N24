@@ -38,6 +38,9 @@ app = modal.App("n24-zero-shot")
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .uv_sync(uv_project_dir="zero-shot")
+    # FlashInfer's top-k/top-p sampler compiles with nvcc at startup, which
+    # debian_slim lacks. Greedy decoding never uses it, so turn it off.
+    .env({"VLLM_USE_FLASHINFER_SAMPLER": "0"})
     .add_local_python_source("n24")
 )
 
