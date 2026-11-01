@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import transformers
-from datasets import DatasetDict, load_from_disk
+from datasets import Dataset, DatasetDict, load_from_disk
 from pydantic import BaseModel
 from rich import print
 from transformers import (
@@ -51,21 +51,67 @@ class Repeatability(BaseModel):
     max_abs_logit_diff: float
 
 
-class Results(BaseModel):
+class TestScores(BaseModel):
+    """The fields every results file shares, trained or zero-shot."""
+
     eval_version: int
     run: str
-    run_dir: str
     test_split_sha256: str
-    git_commit: str | None
-    weights_sha256: Hashes
-    dataset_sha256: Hashes
     test_accuracy: float
     test_f1_macro: float
     test_f1_per_section: dict[str, float]
-    repeatability: Repeatability
     predictions: list[int]
+
+
+class Results(TestScores):
+    run_dir: str
+    git_commit: str | None
+    weights_sha256: Hashes
+    dataset_sha256: Hashes
+    repeatability: Repeatability
     torch_version: str
     transformers_version: str
+
+
+def load_test_split(data_dir: Path) -> Dataset:
+    prepared = load_from_disk(str(data_dir))
+    if not isinstance(prepared, DatasetDict):
+        raise ValueError(f"{data_dir} is not a prepared dataset with splits")
+    return prepared["test"]
+
+
+def score_test_split(
+    run: str, data_dir: Path, test: Dataset, preds: np.ndarray
+) -> TestScores:
+    """Score preds against the test split's labels, under this eval version."""
+    sections = test.features["label"].names
+    labels = np.array(test["label"])
+    per_section = f1_per_section(labels, preds, len(sections))
+    return TestScores(
+        eval_version=EVAL_VERSION,
+        run=run,
+        test_split_sha256=dataset_sha256(data_dir / "test"),
+        test_accuracy=float(np.mean(preds == labels)),
+        test_f1_macro=float(per_section.mean()),
+        test_f1_per_section={
+            section: float(score)
+            for section, score in zip(sections, per_section, strict=True)
+        },
+        predictions=preds.tolist(),
+    )
+
+
+def write_results(results: TestScores, results_dir: Path) -> Path:
+    """Write results_dir/<run>.json. Refuses to overwrite an existing file."""
+    results_dir.mkdir(parents=True, exist_ok=True)
+    results_path = results_dir / f"{results.run}.json"
+    with open(results_path, "x") as stream:
+        stream.write(results.model_dump_json(indent=2) + "\n")
+    print(
+        f"{results.run}: test macro F1 {results.test_f1_macro:.4f}, "
+        f"accuracy {results.test_accuracy:.4f} -> {results_path}"
+    )
+    return results_path
 
 
 def load_model(model_dir: Path) -> tuple[PreTrainedTokenizerBase, PreTrainedModel]:
@@ -111,12 +157,7 @@ def evaluate(run_dir: Path, data_dir: Path, results_dir: Path) -> Results:
 
     torch.use_deterministic_algorithms(True)
     metrics = RunMetrics.model_validate_json((run_dir / "metrics.json").read_text())
-    prepared = load_from_disk(str(data_dir))
-    if not isinstance(prepared, DatasetDict):
-        raise ValueError(f"{data_dir} is not a prepared dataset with splits")
-    test = prepared["test"]
-    sections = test.features["label"].names
-    labels = np.array(test["label"])
+    test = load_test_split(data_dir)
 
     # Tokenize with the run's own max length, so the input matches training.
     model_dir = run_dir / "best_model"
@@ -124,13 +165,10 @@ def evaluate(run_dir: Path, data_dir: Path, results_dir: Path) -> Results:
     first = predict(model_dir, test["abstract"], max_length)
     second = predict(model_dir, test["abstract"], max_length)
     preds = first.argmax(axis=-1)
-    per_section = f1_per_section(labels, preds, len(sections))
 
     results = Results(
-        eval_version=EVAL_VERSION,
-        run=run_dir.name,
+        **score_test_split(run_dir.name, data_dir, test, preds).model_dump(),
         run_dir=str(run_dir),
-        test_split_sha256=dataset_sha256(data_dir / "test"),
         git_commit=metrics.git_commit,
         weights_sha256=Hashes(
             recorded=metrics.weights_sha256,
@@ -139,28 +177,14 @@ def evaluate(run_dir: Path, data_dir: Path, results_dir: Path) -> Results:
         dataset_sha256=Hashes(
             recorded=metrics.dataset_sha256, recomputed=dataset_sha256(data_dir)
         ),
-        test_accuracy=float(np.mean(preds == labels)),
-        test_f1_macro=float(per_section.mean()),
-        test_f1_per_section={
-            section: float(score)
-            for section, score in zip(sections, per_section, strict=True)
-        },
         repeatability=Repeatability(
             label_mismatches=int(np.sum(preds != second.argmax(axis=-1))),
             max_abs_logit_diff=float(np.max(np.abs(first - second))),
         ),
-        predictions=preds.tolist(),
         torch_version=torch.__version__,
         transformers_version=transformers.__version__,
     )
-    results_dir.mkdir(parents=True, exist_ok=True)
-    results_path = results_dir / f"{run_dir.name}.json"
-    with open(results_path, "x") as stream:
-        stream.write(results.model_dump_json(indent=2) + "\n")
-    print(
-        f"{results.run}: test macro F1 {results.test_f1_macro:.4f}, "
-        f"accuracy {results.test_accuracy:.4f} -> {results_path}"
-    )
+    write_results(results, results_dir)
     return results
 
 

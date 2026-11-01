@@ -15,6 +15,7 @@
 
 - `scripts/` holds tooling that sits outside the package: CI checks, git hooks, and setup scripts.
 - `bins/` holds the shell entry points, one folder per purpose: `ci_tasks/` only for what CI runs (the CI check), `data/` for data preparation, `train/` for the smoke test and Modal training, and `api/` for serving and querying the inference API. Scripts you run by hand never go in `ci_tasks/`.
+- `zero-shot/` is a separate uv project for the Modal image of `n24/eval/zero_shot.py`. vLLM pins torch and transformers below the root `uv.lock`, so it has its own lock. It holds no code.
 - `experiment_runs/` holds training output and the local MLflow store. It is git-ignored; never track anything in it.
 - Code that is part of the project workflow (data preparation, training, evaluation, the deployment gate) lives in `n24/` and runs from the repository root with `uv run python -m n24.<package>.<module>`.
 - Exception: the legacy `scripts/news-classifier.py` stays where it is, because legacy code is frozen (ADR 0001) and `tests/test_legacy.py` loads it by path.

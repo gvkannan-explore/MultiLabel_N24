@@ -243,6 +243,30 @@ harness or the test split changes, then rerun the harness for every model,
 the baseline model included. Results are only compared within one eval version
 and test split ([ADR 0005](docs/adr/0005-eval-comparability.md)).
 
+## Zero-shot LLMs
+
+`n24/eval/zero_shot.py` scores an instruction-tuned LLM on the test split with
+no training, using vLLM on a Modal L4 GPU. Run it from the repository root:
+
+```bash
+uv run modal run -m n24.eval.zero_shot --model Qwen/Qwen3-0.6B
+uv run modal run -m n24.eval.zero_shot --model HuggingFaceTB/SmolLM2-360M-Instruct
+```
+
+- The prompt lists the sections and gives the abstract. vLLM decodes
+  greedily and may answer only with a section name.
+- It predicts the test split twice, each pass in a fresh container, and
+  records how many sections differ between the passes.
+- It pins the model to its current Hugging Face commit and records that
+  commit, the prompt's sha256, and the git commit.
+- It writes `results/zs-<model name>.json` with the same eval version, test
+  split hash, and metrics as the eval harness, and refuses to overwrite it.
+
+vLLM pins torch and transformers below the root `uv.lock`, so the Modal image
+installs its own project, `zero-shot/`. After you change
+`zero-shot/pyproject.toml`, run `uv lock` in that folder. The deployment
+gate does not judge zero-shot results.
+
 ## Deployment gate
 
 `n24/gate/report.py` decides whether a scored run may be deployed. It reads a
