@@ -14,9 +14,9 @@ from datasets import load_from_disk
 from sklearn.metrics import accuracy_score, f1_score
 from test_baseline_model import SECTIONS, make_tiny_run
 
-from src.eval import run
-from src.gate import report
-from src.train import train_baseline
+from n24.eval import run
+from n24.gate import report
+from n24.train import train_baseline
 
 
 def write_criteria(path: Path, **overrides: object) -> Path:

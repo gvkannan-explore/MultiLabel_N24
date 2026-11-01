@@ -1,13 +1,13 @@
 """Decide whether a scored run may be deployed.
 
-Reads a results file from src/eval/run.py and the pre-registered criteria,
+Reads a results file from n24/eval/run.py and the pre-registered criteria,
 checks accuracy, repeatability, and reproducibility, and writes an HTML report
 whose rows link to their evidence files.
 
 Exit codes: 0 deployable, 1 not deployable, 2 refused because the results
 file's eval version or test split differs from the criteria.
 
-    uv run python -m src.gate.report results/roberta-baseline.json
+    uv run python -m n24.gate.report results/roberta-baseline.json
 """
 
 import argparse
@@ -22,7 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from rich import print
 from rich.table import Table
 
-from src.eval.run import Results
+from n24.eval.run import Results
 
 
 class AccuracyCriteria(BaseModel):
@@ -146,7 +146,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("results", type=Path, help="A results file from src.eval.run")
+    parser.add_argument("results", type=Path, help="A results file from n24.eval.run")
     parser.add_argument("--criteria", type=Path, default=Path("gate/criteria.toml"))
     parser.add_argument("--reports-dir", type=Path, default=Path("gate/reports"))
     args = parser.parse_args(argv)

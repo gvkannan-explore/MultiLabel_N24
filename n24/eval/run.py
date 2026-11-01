@@ -4,9 +4,9 @@ Predicts the test split twice, each pass with a fresh model load, on CPU with
 deterministic algorithms, and records how far the passes differ
 (repeatability). Recomputes the weights and dataset hashes next to the ones in
 the run's metrics.json (reproducibility). It only measures; the deployment
-gate in src/gate/report.py judges the results file.
+gate in n24/gate/report.py judges the results file.
 
-    uv run python -m src.eval.run --run-dir runs_modal/roberta-baseline
+    uv run python -m n24.eval.run --run-dir runs_modal/roberta-baseline
 """
 
 import argparse
@@ -25,7 +25,7 @@ from transformers import (
     PreTrainedTokenizerBase,
 )
 
-from src.train.train_baseline import dataset_sha256, f1_per_section, sha256_file
+from n24.train.train_baseline import dataset_sha256, f1_per_section, sha256_file
 
 # Bump when this harness or the test split changes, then rerun every model.
 EVAL_VERSION = 1

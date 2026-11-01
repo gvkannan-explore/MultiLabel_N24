@@ -8,8 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.data import prepare_data
-from src.train import train_baseline
+from n24.data import prepare_data
+from n24.train import train_baseline
 
 SECTIONS = ["Travel", "Books", "Sports"]
 

@@ -3,4 +3,4 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 rm -rf experiment_runs/smoke-1
-uv run python -m src.train.train_baseline --data-dir datasets/prepared --output-dir experiment_runs/smoke-1 --max-steps 5
+uv run python -m n24.train.train_baseline --data-dir datasets/prepared --output-dir experiment_runs/smoke-1 --max-steps 5

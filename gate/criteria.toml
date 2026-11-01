@@ -1,8 +1,8 @@
 # Pre-registered deployment gate criteria. Fill these in and commit them
 # before scoring a model on the test split, so they provably predate results.
-# Checked by: uv run python -m src.gate.report results/<run>.json
+# Checked by: uv run python -m n24.gate.report results/<run>.json
 
-# Must equal EVAL_VERSION in src/eval/run.py.
+# Must equal EVAL_VERSION in n24/eval/run.py.
 eval_version = 1
 # sha256 of datasets/prepared/test. Pin it with the command in the README.
 test_split_sha256 = "a801fdcfe3e59bee1fd7fb7f4cf2a6c0acccf905e46f5d7a1ac0b2b5aa8b5ab0"

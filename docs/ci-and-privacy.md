@@ -62,7 +62,7 @@ file, so names in prose still need review there.
 
 ## Scope of the quality gates
 
-Ruff and Pyright cover `src/`, `scripts/*.py`, and `tests/`, including the legacy
+Ruff and Pyright cover `n24/`, `scripts/*.py`, and `tests/`, including the legacy
 code. Lint fixes to legacy code may change style and types but not logic (see
 [ADR 0001](adr/0001-legacy-behavior-frozen.md)). Where Pyright would need a logic
 change, the line carries a narrow `# pyright: ignore[rule]` with a reason.

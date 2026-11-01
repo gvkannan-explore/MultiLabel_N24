@@ -10,30 +10,30 @@ compared against. Terms in this README follow the [glossary](GLOSSARY.md).
 
 ```mermaid
 flowchart LR
-    raw["datasets/news/<br/>nytimes_{train,dev,test}.json"] --> prep["Data preparation<br/>src.data.prepare_data"]
+    raw["datasets/news/<br/>nytimes_{train,dev,test}.json"] --> prep["Data preparation<br/>n24.data.prepare_data"]
     prep --> prepared["datasets/prepared/<br/>train · dev · test"]
-    prepared -- "train + dev" --> train["Training<br/>src.train.train_baseline<br/>(locally or on Modal)"]
+    prepared -- "train + dev" --> train["Training<br/>n24.train.train_baseline<br/>(locally or on Modal)"]
     train --> run["&lt;run&gt;/best_model/<br/>&lt;run&gt;/metrics.json"]
-    run --> track["Tracking<br/>src.track.import_run"]
+    run --> track["Tracking<br/>n24.track.import_run"]
     track --> mlflow["experiment_runs/mlflow.db"]
-    run --> eval["Eval harness<br/>src.eval.run"]
+    run --> eval["Eval harness<br/>n24.eval.run"]
     prepared -- "test only" --> eval
     eval --> results["results/&lt;run&gt;.json"]
-    results --> gate["Deployment gate<br/>src.gate.report"]
+    results --> gate["Deployment gate<br/>n24.gate.report"]
     criteria["gate/criteria.toml"] --> gate
     gate --> report["gate/reports/&lt;run&gt;.html<br/>exit 0 / 1 / 2"]
 ```
 
 | Stage | Command | Reads | Writes |
 |---|---|---|---|
-| Data preparation | `src.data.prepare_data` | `datasets/news/nytimes_{train,dev,test}.json` | `datasets/prepared/` |
-| Training | `src.train.train_baseline`, or `src.train.modal_train` on a GPU | prepared train and dev splits | `<run>/best_model/`, `<run>/metrics.json` |
-| Tracking | `src.track.import_run` | `metrics.json` or `metrics/<run>.json` | `experiment_runs/mlflow.db` |
-| Eval harness | `src.eval.run` | `<run>/`, prepared test split | `results/<run>.json` |
-| Deployment gate | `src.gate.report` | results file, `gate/criteria.toml` | `gate/reports/<run>.html`, exit code |
+| Data preparation | `n24.data.prepare_data` | `datasets/news/nytimes_{train,dev,test}.json` | `datasets/prepared/` |
+| Training | `n24.train.train_baseline`, or `n24.train.modal_train` on a GPU | prepared train and dev splits | `<run>/best_model/`, `<run>/metrics.json` |
+| Tracking | `n24.track.import_run` | `metrics.json` or `metrics/<run>.json` | `experiment_runs/mlflow.db` |
+| Eval harness | `n24.eval.run` | `<run>/`, prepared test split | `results/<run>.json` |
+| Deployment gate | `n24.gate.report` | results file, `gate/criteria.toml` | `gate/reports/<run>.html`, exit code |
 
 Every stage is a module run from the repository root with
-`uv run python -m src.<package>.<module>`. Stages talk to each other only
+`uv run python -m n24.<package>.<module>`. Stages talk to each other only
 through files on disk, so each one can be rerun, tested, and inspected alone.
 
 One rule holds the design together: **the trainer never reads the test split.**
@@ -61,11 +61,11 @@ git-ignored.
 
 ## Data preparation
 
-`src/data/prepare_data.py` turns the three split files into the prepared
+`n24/data/prepare_data.py` turns the three split files into the prepared
 dataset that the trainer and the eval harness read.
 
 ```bash
-uv run python -m src.data.prepare_data --input-dir datasets/news --output-dir datasets/prepared
+uv run python -m n24.data.prepare_data --input-dir datasets/news --output-dir datasets/prepared
 # or, deleting any earlier datasets/prepared first:
 bash bins/data/data_prep.sh
 ```
@@ -88,11 +88,11 @@ so later models can use them without preparing the data again
 
 ## Training the baseline model
 
-`src/train/train_baseline.py` fine-tunes `FacebookAI/roberta-base` for
+`n24/train/train_baseline.py` fine-tunes `FacebookAI/roberta-base` for
 sequence classification. The model input is the abstract alone.
 
 ```bash
-uv run python -m src.train.train_baseline --data-dir datasets/prepared --output-dir experiment_runs/roberta-baseline
+uv run python -m n24.train.train_baseline --data-dir datasets/prepared --output-dir experiment_runs/roberta-baseline
 ```
 
 Use a GPU for the full run. How a run works:
@@ -144,7 +144,7 @@ this into `experiment_runs/smoke-1` to check that the trainer runs end to end.
 
 ## Training on Modal
 
-`src/train/modal_train.py` runs the same `train` function on a Modal L4 GPU
+`n24/train/modal_train.py` runs the same `train` function on a Modal L4 GPU
 with a two-hour timeout.
 
 - The image installs the dependencies from `uv.lock` and has the
@@ -176,7 +176,7 @@ that file into the local MLflow store, and stages it for you to commit. Smoke
 runs use plain `modal run`, so `metrics/` holds only real experiments:
 
 ```bash
-uv run modal run -m src.train.modal_train --name smoke-1 --args "--max-steps 5"
+uv run modal run -m n24.train.modal_train --name smoke-1 --args "--max-steps 5"
 ```
 
 The script fetches only `metrics.json`. Download the whole run before you
@@ -188,7 +188,7 @@ uv run modal volume get n24-runs roberta-lr3e-5 runs_modal/
 
 ## Experiment tracking
 
-`src/track/import_run.py` logs runs into a local MLflow store
+`n24/track/import_run.py` logs runs into a local MLflow store
 ([ADR 0006](docs/adr/0006-mlflow-imports-metrics-json.md)). Training never
 talks to MLflow. The import reads a finished run's `metrics.json` and logs it
 as one MLflow run in the `baseline-model` experiment, named after the run's
@@ -206,18 +206,18 @@ repeat. The store `experiment_runs/mlflow.db` is a git-ignored cache; the
 any clone, add a local run, and browse:
 
 ```bash
-uv run python -m src.track.import_run metrics/*.json
-uv run python -m src.track.import_run experiment_runs/smoke-1/metrics.json
+uv run python -m n24.track.import_run metrics/*.json
+uv run python -m n24.track.import_run experiment_runs/smoke-1/metrics.json
 uv run mlflow ui --backend-store-uri sqlite:///experiment_runs/mlflow.db
 ```
 
 ## Eval harness
 
-`src/eval/run.py` scores one trained run on the test split and writes its
+`n24/eval/run.py` scores one trained run on the test split and writes its
 results file. It measures and does not judge.
 
 ```bash
-uv run python -m src.eval.run --run-dir runs_modal/roberta-baseline
+uv run python -m n24.eval.run --run-dir runs_modal/roberta-baseline
 ```
 
 `--data-dir` defaults to `datasets/prepared` and `--results-dir` to `results`.
@@ -238,14 +238,14 @@ accuracy, test macro F1, per-section test F1, the repeatability numbers, the
 predicted section for every test article, and the torch and transformers
 versions.
 
-`EVAL_VERSION` in `src/eval/run.py` is the eval version. Bump it whenever the
+`EVAL_VERSION` in `n24/eval/run.py` is the eval version. Bump it whenever the
 harness or the test split changes, then rerun the harness for every model,
 the baseline model included. Results are only compared within one eval version
 and test split ([ADR 0005](docs/adr/0005-eval-comparability.md)).
 
 ## Deployment gate
 
-`src/gate/report.py` decides whether a scored run may be deployed. It reads a
+`n24/gate/report.py` decides whether a scored run may be deployed. It reads a
 results file and the criteria in `gate/criteria.toml`.
 
 **Pre-register the criteria first.** Fill in `gate/criteria.toml` and commit it
@@ -253,7 +253,7 @@ before you score any model on the test split, so the git history proves the
 thresholds came before the results. Pin the test split hash there:
 
 ```bash
-uv run python -c "from pathlib import Path; from src.train.train_baseline import dataset_sha256; print(dataset_sha256(Path('datasets/prepared/test')))"
+uv run python -c "from pathlib import Path; from n24.train.train_baseline import dataset_sha256; print(dataset_sha256(Path('datasets/prepared/test')))"
 ```
 
 The criteria file holds `eval_version`, `test_split_sha256`, the
@@ -261,7 +261,7 @@ The criteria file holds `eval_version`, `test_split_sha256`, the
 Unknown keys or an unpinned hash are rejected. Then judge a run:
 
 ```bash
-uv run python -m src.gate.report results/roberta-baseline.json
+uv run python -m n24.gate.report results/roberta-baseline.json
 ```
 
 The deployment gate first refuses, with exit code 2, a results file whose eval
@@ -313,8 +313,8 @@ the CI document.
 
 The legacy code's behavior is frozen
 ([ADR 0001](docs/adr/0001-legacy-behavior-frozen.md)). It covers
-`scripts/news-classifier.py`, `src/utils/data.py`,
-`src/preprocess/roberta_preprocessor.py`, and the notebooks. Some of it does
+`scripts/news-classifier.py`, `n24/utils/data.py`,
+`n24/preprocess/roberta_preprocessor.py`, and the notebooks. Some of it does
 not work: `news-classifier.py` expects an `n24news.csv` that does not exist,
 and `load_datajson` reads an `article` key. That is the brownfield starting
 point, and `tests/test_legacy.py` pins it. Changes to legacy code are limited
@@ -323,7 +323,7 @@ to formatting, imports, and annotations.
 ## Repository layout
 
 ```text
-src/
+n24/
   data/          data preparation
   train/         trainer and its Modal wrapper
   track/         MLflow import

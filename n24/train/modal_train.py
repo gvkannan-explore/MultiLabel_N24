@@ -1,4 +1,4 @@
-"""Run src/train/train_baseline.py on a Modal GPU.
+"""Run n24/train/train_baseline.py on a Modal GPU.
 
 The image installs the locked dependencies from uv.lock. The prepared dataset
 comes from the n24-data volume and each run is written to the n24-runs volume.
@@ -9,8 +9,8 @@ One-time setup:
     uv run modal volume put n24-data datasets/prepared /data/prepared
 
 Runs:
-    uv run modal run -m src.train.modal_train --name smoke-1 --args "--max-steps 5"
-    uv run modal run -m src.train.modal_train --name roberta-baseline
+    uv run modal run -m n24.train.modal_train --name smoke-1 --args "--max-steps 5"
+    uv run modal run -m n24.train.modal_train --name roberta-baseline
     uv run modal volume get n24-runs roberta-baseline runs_modal/
 """
 
@@ -18,7 +18,7 @@ import shlex
 
 import modal
 
-from src.train.train_baseline import git_commit, parse_args, train
+from n24.train.train_baseline import git_commit, parse_args, train
 
 app = modal.App("n24-baseline")
 
@@ -32,7 +32,7 @@ image = (
         "hf download FacebookAI/roberta-base"
         " --include '*.json' --include '*.txt' --include '*.safetensors'"
     )
-    .add_local_python_source("src")
+    .add_local_python_source("n24")
 )
 data = modal.Volume.from_name("n24-data")
 runs = modal.Volume.from_name("n24-runs", create_if_missing=True)

@@ -2,7 +2,7 @@
 
 Keeps the epoch with the best macro F1 on the dev split, then writes
 best_model/ and metrics.json to the output directory. The test split is not
-used. src/train/modal_train.py runs it on a Modal GPU.
+used. n24/train/modal_train.py runs it on a Modal GPU.
 """
 
 import argparse

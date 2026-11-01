@@ -8,9 +8,9 @@ from pathlib import Path
 import mlflow
 from test_baseline_model import fixture_splits, save_tiny_roberta, write_splits
 
-from src.data import prepare_data
-from src.track import import_run
-from src.train import train_baseline
+from n24.data import prepare_data
+from n24.track import import_run
+from n24.train import train_baseline
 
 
 def fixture_metrics(output_dir: str) -> dict[str, object]:
