@@ -10,8 +10,8 @@ n24/eval/run.py, so they compare directly with trained runs.
 The Modal image installs zero-shot/uv.lock, because vLLM pins torch and
 transformers below the versions in the root uv.lock.
 
-    uv run modal run -m n24.eval.zero_shot --model Qwen/Qwen3-0.6B
-    uv run modal run -m n24.eval.zero_shot --model HuggingFaceTB/SmolLM2-360M-Instruct
+    uv run modal run -m n24.eval.zero_shot::main --model Qwen/Qwen3-0.6B
+    uv run modal run -m n24.eval.zero_shot::main --model HuggingFaceTB/SmolLM2-360M-Instruct
 """
 
 import hashlib

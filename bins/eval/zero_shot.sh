@@ -12,5 +12,5 @@ if (( ${#models[@]} == 0 )); then
     models=(Qwen/Qwen3-0.6B HuggingFaceTB/SmolLM2-360M-Instruct)
 fi
 for model in "${models[@]}"; do
-    uv run modal run -m n24.eval.zero_shot --model "$model"
+    uv run modal run -m n24.eval.zero_shot::main --model "$model"
 done
