@@ -121,7 +121,7 @@ def evaluate(
 
 @app.local_entrypoint()
 def main(
-    model: str, data_dir: str = "datasets/prepared", results_dir: str = "results"
+    model: str, data_dir: str = "datasets/prepared", results_dir: str = "results/llm"
 ) -> None:
     """Score one Hugging Face model, pinned to its current commit."""
     revision = HfApi().model_info(model).sha

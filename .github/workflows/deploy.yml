@@ -1,0 +1,40 @@
+name: Deploy
+# A trained encoder run's results file starts gate -> deploy. Zero-shot
+# results in results/llm/ are outside the path filter (ADR 0008).
+on:
+  push:
+    branches: [main]
+    paths: ['results/nlp/*.json']
+permissions:
+  contents: read
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: bash bins/ci_tasks/deploy.sh "$BEFORE" "$AFTER"
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+          MODAL_PROXY_KEY: ${{ secrets.MODAL_PROXY_KEY }}
+          MODAL_PROXY_SECRET: ${{ secrets.MODAL_PROXY_SECRET }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: gate-report
+          path: gate/reports/
+          if-no-files-found: ignore

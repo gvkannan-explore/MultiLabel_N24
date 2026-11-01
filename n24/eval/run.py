@@ -194,7 +194,7 @@ def main() -> None:
     )
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--data-dir", type=Path, default=Path("datasets/prepared"))
-    parser.add_argument("--results-dir", type=Path, default=Path("results"))
+    parser.add_argument("--results-dir", type=Path, default=Path("results/nlp"))
     args = parser.parse_args()
     evaluate(args.run_dir, args.data_dir, args.results_dir)
 
