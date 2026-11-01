@@ -15,6 +15,8 @@ args="${2:-}"
 cd "$(git rev-parse --show-toplevel)"
 uv run modal run -m n24.train.modal_train --name "$name" --args "$args"
 mkdir -p metrics
-uv run modal volume get n24-runs "$name/metrics.json" - > "metrics/$name.json"
+# Download to a path, not stdout ("-"): Modal prints its "Finished
+# downloading" status on stdout too, which would corrupt the JSON.
+uv run modal volume get --force n24-runs "$name/metrics.json" "metrics/$name.json"
 uv run python -m n24.track.import_run "metrics/$name.json"
 git add "metrics/$name.json"
