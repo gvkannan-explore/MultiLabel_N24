@@ -6,34 +6,68 @@ legacy code, the guardrails added around it, and the pipeline that trains and
 judges the baseline model: the first classifier that every later model is
 compared against. Terms in this README follow the [glossary](GLOSSARY.md).
 
+The baseline model scores 0.786 macro F1 and 0.799 accuracy on the test split
+and passes all seven checks of the deployment gate
+([gate report](gate/reports/baseline-roberta-epoch3-Oct312026.html)). A small
+LLM with no training (Qwen3-0.6B) scores 0.071 macro F1 on the same test
+split.
+
 ## How it fits together
 
 ```mermaid
 flowchart LR
-    raw["datasets/news/<br/>nytimes_{train,dev,test}.json"] --> prep["Data preparation<br/>n24.data.prepare_data"]
-    prep --> prepared["datasets/prepared/<br/>train · dev · test"]
-    prepared -- "train + dev" --> train["Training<br/>n24.train.train_baseline<br/>(locally or on Modal)"]
-    train --> run["&lt;run&gt;/best_model/<br/>&lt;run&gt;/metrics.json"]
-    run --> track["Tracking<br/>n24.track.import_run"]
-    track --> mlflow["experiment_runs/mlflow.db"]
-    run --> eval["Eval harness<br/>n24.eval.run"]
-    prepared -- "test only" --> eval
-    eval --> results["results/nlp/&lt;run&gt;.json"]
-    results --> gate["Deployment gate<br/>n24.gate.report"]
-    criteria["gate/criteria.toml"] --> gate
-    gate --> report["gate/reports/&lt;run&gt;.html<br/>exit 0 / 1 / 2"]
-    gate -- "exit 0" --> deploy["Deployment<br/>n24.deploy.modal_app<br/>frozen Modal image"]
-    run --> deploy
+    subgraph s1["1 · Prepare data"]
+        direction TB
+        p1["Clean and split<br/>the news articles"] --> a1[/"Prepared dataset<br/>24 sections"/]
+    end
+    subgraph s2["2 · Train model"]
+        direction TB
+        p2["Fine-tune RoBERTa<br/>on a Modal GPU"] --> a2[/"Trained model<br/>and training report"/]
+    end
+    subgraph s3["3 · Deployment gate"]
+        direction TB
+        c3[/"Criteria, committed<br/>before any test score"/] --> p3{"All seven checks<br/>pass?"} --> a3[/"HTML report<br/>of each check"/]
+    end
+    subgraph s4["4 · Deployment"]
+        direction TB
+        p4["Deploy a frozen copy<br/>of the approved model"] --> a4[/"Inference API<br/>behind proxy auth"/]
+    end
+    blocked["Blocked.<br/>Nothing deploys."]
+
+    s1 --> s2 --> s3
+    s3 -- "yes" --> s4
+    s3 -- "no" --> blocked
+
+    classDef step fill:#dbeafe,stroke:#1d4ed8,color:#172554
+    classDef artifact fill:#dcfce7,stroke:#15803d,color:#14532d
+    classDef input fill:#fef9c3,stroke:#a16207,color:#422006
+    classDef stop fill:#fee2e2,stroke:#b91c1c,color:#450a0a
+    class p1,p2,p3,p4 step
+    class a1,a2,a3,a4 artifact
+    class c3 input
+    class blocked stop
 ```
 
-| Stage | Command | Reads | Writes |
-|---|---|---|---|
-| Data preparation | `n24.data.prepare_data` | `datasets/news/nytimes_{train,dev,test}.json` | `datasets/prepared/` |
-| Training | `n24.train.train_baseline`, or `n24.train.modal_train` on a GPU | prepared train and dev splits | `<run>/best_model/`, `<run>/metrics.json` |
-| Tracking | `n24.track.import_run` | `metrics.json` or `metrics/<run>.json` | `experiment_runs/mlflow.db` |
-| Eval harness | `n24.eval.run` | `<run>/`, prepared test split | `results/nlp/<run>.json` |
-| Deployment gate | `n24.gate.report` | results file, `gate/criteria.toml` | `gate/reports/<run>.html`, exit code |
-| Deployment | `bins/ci_tasks/deploy.sh` in GitHub Actions | `results/nlp/<run>.json`, `<run>/` on the `n24-runs` volume | the `n24-api` Modal app |
+Blue boxes are the steps, and green boxes are what each step writes. The
+yellow box is the one input you write by hand: the criteria in
+`gate/criteria.toml`, which set the minimum test scores. You commit them before
+you score any model on the test split, so the git history shows that nobody
+lowered the bar after seeing a score.
+
+The table lists every stage, including the ones the diagram leaves out.
+
+| Stage | Command | Reads | Writes | Lives in |
+|---|---|---|---|---|
+| Data preparation | `n24.data.prepare_data` | `datasets/news/nytimes_{train,dev,test}.json` | `datasets/prepared/` | local and git-ignored, with a copy on the `n24-data` volume |
+| Training | `n24.train.train_baseline`, or `n24.train.modal_train` on a GPU | prepared train and dev splits | `<run>/best_model/`, `<run>/metrics.json`, `<run>/training_report.pdf` | the `n24-runs` volume, or `experiment_runs/` for a local run |
+| Tracking | `n24.track.import_run` | `metrics.json` or `metrics/<run>.json` | `experiment_runs/mlflow.db` | a local cache, rebuilt from `metrics/` in git |
+| Eval harness | `n24.eval.run` | `<run>/`, prepared test split | `results/nlp/<run>.json` | git |
+| Zero-shot LLMs | `n24.eval.zero_shot` | prepared test split | `results/llm/zs-<model>.json` | git |
+| Deployment gate | `n24.gate.report` | results file, `gate/criteria.toml` | `gate/reports/<run>.html`, exit code | git, and the `gate-report` artifact of the deploy job |
+| Deployment | `bins/ci_tasks/deploy.sh` in GitHub Actions | `results/nlp/<run>.json`, `<run>/` on the `n24-runs` volume | the `n24-api` Modal app | Modal, as a frozen image |
+
+The [system diagram](docs/system-diagram.md) draws every command, artifact,
+and guardrail, and each of the deployment gate's seven checks.
 
 Every stage is a module run from the repository root with
 `uv run python -m n24.<package>.<module>`. Stages talk to each other only
@@ -389,34 +423,10 @@ runs_modal/      runs downloaded from Modal (git-ignored)
 
 ## Tests
 
-The tests run offline on CPU and never download pretrained weights. Where a
-model is needed they build a tiny RoBERTa on synthetic splits.
-
-- `tests/test_baseline_model.py`: data preparation (sorted sections,
-  whitespace cleaning, rejected records) and the trainer (metrics match
-  scikit-learn; a smoke run writes `best_model/` and `metrics.json`).
-- `tests/test_import_run.py`: the MLflow import logs scores, parameters, tags,
-  and curves, and skips a run that is already in the store.
-- `tests/test_deployment_gate.py`: the eval harness's results file,
-  repeatability, and refusal to overwrite, and every pass, fail, and refusal
-  path of the deployment gate.
-- `tests/test_deploy.py`: freezing a run copies only what the inference API
-  reads, serves from the copy, and rejects other weights or a non-encoder
-  checkpoint.
-- `tests/test_privacy.py`: the privacy scanner and the identity guard.
-- `tests/test_legacy.py`: the current behavior of the legacy code.
-
-```bash
-HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 uv run python -m unittest discover -s tests -v
-```
+[Tests](docs/tests.md) lists what each test file covers and the command that
+runs them offline.
 
 ## Decisions
 
-- [ADR 0001: Legacy behavior is frozen](docs/adr/0001-legacy-behavior-frozen.md)
-- [ADR 0002: History was rewritten before the baseline branch](docs/adr/0002-history-rewritten-before-baseline.md)
-- [ADR 0003: Commits use the owner's GitHub noreply identity](docs/adr/0003-github-noreply-identity.md)
-- [ADR 0004: The baseline model reads the abstract alone](docs/adr/0004-baseline-model-reads-abstract-alone.md)
-- [ADR 0005: Results are compared only within one eval version and test split](docs/adr/0005-eval-comparability.md)
-- [ADR 0006: MLflow is a local view imported from each run's metrics.json](docs/adr/0006-mlflow-imports-metrics-json.md)
-- [ADR 0008: Deployments are frozen Modal images of encoder runs only](docs/adr/0008-frozen-modal-image-deploys-encoder-runs-only.md)
-- [Glossary](GLOSSARY.md)
+The [decision records](docs/adr/README.md) list each ADR. The
+[glossary](GLOSSARY.md) defines the project's terms.
