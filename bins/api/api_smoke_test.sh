@@ -8,7 +8,7 @@ run_dir=${1:-experiment_runs/smoke-1}
 port=${2:-8765}
 url="http://127.0.0.1:$port"
 
-uv run python -m src.api.app --run-dir "$run_dir" --port "$port" &
+uv run python -m n24.api.app --run-dir "$run_dir" --port "$port" &
 server=$!
 trap 'kill "$server" 2>/dev/null' EXIT
 

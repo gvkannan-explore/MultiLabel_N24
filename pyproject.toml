@@ -45,11 +45,11 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*"]
+include = ["n24*"]
 
 [tool.ruff]
 target-version = "py312"
-include = ["src/**/*.py", "scripts/*.py", "tests/*.py"]
+include = ["n24/**/*.py", "scripts/*.py", "tests/*.py"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "UP"]
@@ -62,4 +62,4 @@ known-third-party = ["datasets"]
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
-include = ["src", "scripts", "tests"]
+include = ["n24", "scripts", "tests"]

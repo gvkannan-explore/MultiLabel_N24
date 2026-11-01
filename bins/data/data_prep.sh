@@ -3,4 +3,4 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 rm -rf datasets/prepared
-uv run python -m src.data.prepare_data --input-dir datasets/news --output-dir datasets/prepared
+uv run python -m n24.data.prepare_data --input-dir datasets/news --output-dir datasets/prepared

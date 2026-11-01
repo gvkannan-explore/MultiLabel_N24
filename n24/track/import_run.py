@@ -5,7 +5,7 @@ wrote and logs it as one MLflow run named after the run's output directory.
 A run that is already in the store is skipped, so the store is a cache:
 delete it and import metrics/*.json again to rebuild it.
 
-    uv run python -m src.track.import_run metrics/*.json
+    uv run python -m n24.track.import_run metrics/*.json
     uv run mlflow ui --backend-store-uri sqlite:///experiment_runs/mlflow.db
 """
 

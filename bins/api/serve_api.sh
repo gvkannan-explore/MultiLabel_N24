@@ -6,4 +6,4 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 run_dir=${1:-experiment_runs/smoke-1}
 port=${2:-8000}
-uv run python -m src.api.app --run-dir "$run_dir" --port "$port"
+uv run python -m n24.api.app --run-dir "$run_dir" --port "$port"

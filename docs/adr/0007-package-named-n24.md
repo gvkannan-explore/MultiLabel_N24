@@ -1,0 +1,3 @@
+# The package is named n24, not src
+
+The project's code lived in a top-level package named `src`, so imports read `from src.eval.run import ...` and installing the project put a package called `src` into the environment, where it collides with any other project that does the same. The package is now `n24`, in a flat layout at the repository root, and every module still runs from the root with `uv run python -m n24.<package>.<module>`. The move takes the legacy files `src/utils/data.py` and `src/preprocess/roberta_preprocessor.py` with it. ADR 0001 limits legacy changes to formatting, imports, and annotations; a move changes only the import path, and `tests/test_legacy.py` still pins the same behavior, so it stays within that rule.

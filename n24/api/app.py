@@ -8,7 +8,7 @@ import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel, Field, StringConstraints, TypeAdapter
 
-from src.eval.run import RunMetrics, compute_logits, load_model
+from n24.eval.run import RunMetrics, compute_logits, load_model
 
 
 class PredictRequest(BaseModel):

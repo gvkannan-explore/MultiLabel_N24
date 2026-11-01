@@ -25,8 +25,8 @@ assert SPEC is not None and SPEC.loader is not None
 news_classifier = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(news_classifier)
 
-from src.preprocess import roberta_preprocessor  # noqa: E402
-from src.utils.data import load_datajson  # noqa: E402
+from n24.preprocess import roberta_preprocessor  # noqa: E402
+from n24.utils.data import load_datajson  # noqa: E402
 
 
 @contextmanager

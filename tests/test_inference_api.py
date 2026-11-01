@@ -14,8 +14,8 @@ from fastapi.testclient import TestClient
 from pydantic import TypeAdapter
 from test_baseline_model import SECTIONS, make_tiny_run
 
-from src.api.app import create_app
-from src.eval import run
+from n24.api.app import create_app
+from n24.eval import run
 
 
 class InferenceApiTests(unittest.TestCase):
