@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import torch
+
 from n24.data import prepare_data
 from n24.train import train_baseline
 
@@ -188,6 +190,11 @@ class TrainBaselineTests(unittest.TestCase):
             self.assertEqual(saved["dataset_sha256"], before)
             self.assertEqual(saved, metrics)
             self.assertEqual(saved["git_commit"], "abc123")
+            # The CUDA device's name, or None on a machine without CUDA.
+            expected_gpu = (
+                torch.cuda.get_device_name() if torch.cuda.is_available() else None
+            )
+            self.assertEqual(saved["gpu"], expected_gpu)
             for key in ("dev_accuracy", "dev_f1_macro"):
                 self.assertGreaterEqual(saved[key], 0.0)
                 self.assertLessEqual(saved[key], 1.0)

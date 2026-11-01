@@ -41,7 +41,8 @@ runs = modal.Volume.from_name("n24-runs", create_if_missing=True)
 
 @app.function(
     image=image,
-    gpu="L4",
+    # The first free GPU in the list; metrics.json records which one ran.
+    gpu=["L4", "A10G"],
     timeout=2 * 60 * 60,
     volumes={"/news24-data": data, "/news24-runs": runs},
 )

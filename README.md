@@ -127,6 +127,7 @@ Use a GPU for the full run. How a run works:
 - `args`: every flag, as strings
 - `git_commit`: the output of `git describe --always --dirty`, so a run from
   uncommitted code ends in `-dirty`
+- `gpu`: the CUDA device's name, such as `NVIDIA L4`, or null without CUDA
 - `dataset_sha256`: a hash of every file in the prepared dataset except
   `state.json`, which the datasets library rewrites with a random fingerprint
   on each save, and the `cache-*.arrow` files that each training run's
@@ -144,8 +145,9 @@ this into `experiment_runs/smoke-1` to check that the trainer runs end to end.
 
 ## Training on Modal
 
-`n24/train/modal_train.py` runs the same `train` function on a Modal L4 GPU
-with a two-hour timeout.
+`n24/train/modal_train.py` runs the same `train` function on a Modal GPU
+with a two-hour timeout. It takes an L4, or an A10G when no L4 is free; both
+support bf16, and `metrics.json` records which one ran.
 
 - The image installs the dependencies from `uv.lock` and has the
   `FacebookAI/roberta-base` weights and tokenizer built in, so a run does not
@@ -198,7 +200,7 @@ output directory:
 - metrics: the `log_history` curves by step, the final dev scores, and
   per-section dev F1 as `dev_f1/<section>` (MLflow rejects `&`, so
   "Art & Design" becomes "Art and Design")
-- tags: `git_commit`, `dataset_sha256`, `weights_sha256`
+- tags: `git_commit`, `gpu`, `dataset_sha256`, `weights_sha256`
 
 A run whose name is already in the store is skipped, so imports are safe to
 repeat. The store `experiment_runs/mlflow.db` is a git-ignored cache; the

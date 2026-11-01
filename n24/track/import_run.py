@@ -28,6 +28,8 @@ class TrainingMetrics(BaseModel):
     dev_f1_per_section: dict[str, float]
     args: dict[str, str]
     git_commit: str | None
+    # Runs trained before the trainer recorded the GPU have no gpu field.
+    gpu: str | None = None
     dataset_sha256: str
     weights_sha256: str
     log_history: list[dict[str, float]]
@@ -66,6 +68,7 @@ def import_run(path: Path) -> str | None:
         mlflow.set_tags(
             {
                 "git_commit": str(metrics.git_commit),
+                "gpu": str(metrics.gpu),
                 "dataset_sha256": metrics.dataset_sha256,
                 "weights_sha256": metrics.weights_sha256,
             }
