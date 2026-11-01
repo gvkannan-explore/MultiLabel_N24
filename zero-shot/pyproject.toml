@@ -1,0 +1,16 @@
+# The Modal image for n24/eval/zero_shot.py. vLLM pins torch and transformers
+# below the versions in the root uv.lock, so it gets its own project and lock.
+[project]
+name = "n24-zero-shot"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "datasets>=5.1.0",
+    "rich>=15.0.0",
+    "vllm==0.32.0",
+]
+
+[tool.uv]
+package = false
+# vLLM ships Linux wheels only, and the Modal image is Linux on x86_64.
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
