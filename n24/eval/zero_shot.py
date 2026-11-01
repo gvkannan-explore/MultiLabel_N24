@@ -63,7 +63,7 @@ def prompt_sha256() -> str:
 
 
 # One input per container, so each prediction pass loads the model fresh.
-@app.function(image=image, gpu="L4", timeout=60 * 60, single_use_containers=True)
+@app.function(image=image, gpu=["L4", "A10G"], timeout=60 * 60, single_use_containers=True)
 def predict_remote(
     model: str, revision: str, chats: list[Chat], sections: list[str]
 ) -> list[int]:
