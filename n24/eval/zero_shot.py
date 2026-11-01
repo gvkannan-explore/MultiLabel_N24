@@ -15,12 +15,15 @@ transformers below the versions in the root uv.lock.
 """
 
 import hashlib
+from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
 
 import modal
 import numpy as np
 from huggingface_hub import HfApi
+from rich import print
+from rich.table import Table
 
 from n24.eval.run import TestScores, load_test_split, score_test_split, write_results
 from n24.train.train_baseline import git_commit
@@ -119,14 +122,60 @@ def evaluate(
     return results
 
 
+@app.function(
+    image=image, gpu=["L4", "A10G"], timeout=60 * 60, single_use_containers=True
+)
+def answer_remote(model: str, revision: str, chats: list[Chat]) -> list[str]:
+    """The raw answer for each chat, with the same settings as predict_remote
+    but no constraint on the output."""
+    from vllm import LLM, SamplingParams  # pyright: ignore[reportMissingImports]
+
+    llm = LLM(model=model, revision=revision, seed=0, max_model_len=2048)
+    params = SamplingParams(temperature=0.0, max_tokens=16)
+    outputs = llm.chat(chats, params, chat_template_kwargs={"enable_thinking": False})
+    return [output.outputs[0].text for output in outputs]
+
+
+def pinned_revision(model: str) -> str:
+    revision = HfApi().model_info(model).sha
+    if revision is None:
+        raise ValueError(f"Hugging Face returned no commit for {model}")
+    return revision
+
+
+@app.local_entrypoint()
+def probe(model: str, n: int = 50, data_dir: str = "datasets/prepared") -> None:
+    """Print the model's unconstrained answers for the first n test abstracts.
+    A diagnostic: it writes nothing and scores nothing.
+
+        uv run modal run -m n24.eval.zero_shot::probe --model Qwen/Qwen3-0.6B
+    """
+    test = load_test_split(Path(data_dir)).select(range(n))
+    sections = test.features["label"].names
+    chats = [build_messages(abstract, sections) for abstract in test["abstract"]]
+    answers = answer_remote.remote(model, pinned_revision(model), chats)
+
+    table = Table(title=f"{model}: unconstrained answers")
+    table.add_column("Abstract", max_width=60, overflow="ellipsis", no_wrap=True)
+    table.add_column("Gold")
+    table.add_column("Answer")
+    table.add_column("Section?")
+    for abstract, label, answer in zip(test["abstract"], test["label"], answers):
+        table.add_row(
+            abstract, sections[label], repr(answer), str(answer.strip() in sections)
+        )
+    print(table)
+    matches = sum(answer.strip() in sections for answer in answers)
+    print(f"Exact section names: {matches}/{n}")
+    print(Counter(answer.strip() for answer in answers).most_common())
+
+
 @app.local_entrypoint()
 def main(
     model: str, data_dir: str = "datasets/prepared", results_dir: str = "results/llm"
 ) -> None:
     """Score one Hugging Face model, pinned to its current commit."""
-    revision = HfApi().model_info(model).sha
-    if revision is None:
-        raise ValueError(f"Hugging Face returned no commit for {model}")
+    revision = pinned_revision(model)
     evaluate(
         model=model,
         revision=revision,
