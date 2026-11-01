@@ -60,6 +60,10 @@ _Avoid_: harness version, schema version
 The post-training check that reads a results file and pre-registered criteria and decides whether the run may be deployed.
 _Avoid_: gate (that word alone means a guardrail), release check
 
+**Deployment**:
+A gated encoder run serving the inference API on Modal from a frozen image: an image that holds its own copy of the run's checkpoint and code, built only after the deployment gate passes.
+_Avoid_: release, rollout, ship
+
 **Repeatability**:
 Two prediction passes over the test split, each with a fresh model load, give the same sections and logits within a tolerance.
 _Avoid_: determinism, stability

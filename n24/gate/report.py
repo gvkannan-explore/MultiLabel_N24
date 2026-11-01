@@ -7,7 +7,7 @@ whose rows link to their evidence files.
 Exit codes: 0 deployable, 1 not deployable, 2 refused because the results
 file's eval version or test split differs from the criteria.
 
-    uv run python -m n24.gate.report results/roberta-baseline.json
+    uv run python -m n24.gate.report results/nlp/roberta-baseline.json
 """
 
 import argparse

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Score Qwen3-0.6B and SmolLM2-360M-Instruct zero-shot on the test split, each
-# on a Modal GPU (n24/eval/zero_shot.py). Results go to results/.
+# on a Modal GPU (n24/eval/zero_shot.py). Results go to results/llm/.
 #
 # Usage: bash bins/eval/zero_shot.sh [model ...]
 #   bash bins/eval/zero_shot.sh

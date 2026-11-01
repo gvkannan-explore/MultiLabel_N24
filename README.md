@@ -18,10 +18,12 @@ flowchart LR
     track --> mlflow["experiment_runs/mlflow.db"]
     run --> eval["Eval harness<br/>n24.eval.run"]
     prepared -- "test only" --> eval
-    eval --> results["results/&lt;run&gt;.json"]
+    eval --> results["results/nlp/&lt;run&gt;.json"]
     results --> gate["Deployment gate<br/>n24.gate.report"]
     criteria["gate/criteria.toml"] --> gate
     gate --> report["gate/reports/&lt;run&gt;.html<br/>exit 0 / 1 / 2"]
+    gate -- "exit 0" --> deploy["Deployment<br/>n24.deploy.modal_app<br/>frozen Modal image"]
+    run --> deploy
 ```
 
 | Stage | Command | Reads | Writes |
@@ -29,8 +31,9 @@ flowchart LR
 | Data preparation | `n24.data.prepare_data` | `datasets/news/nytimes_{train,dev,test}.json` | `datasets/prepared/` |
 | Training | `n24.train.train_baseline`, or `n24.train.modal_train` on a GPU | prepared train and dev splits | `<run>/best_model/`, `<run>/metrics.json` |
 | Tracking | `n24.track.import_run` | `metrics.json` or `metrics/<run>.json` | `experiment_runs/mlflow.db` |
-| Eval harness | `n24.eval.run` | `<run>/`, prepared test split | `results/<run>.json` |
+| Eval harness | `n24.eval.run` | `<run>/`, prepared test split | `results/nlp/<run>.json` |
 | Deployment gate | `n24.gate.report` | results file, `gate/criteria.toml` | `gate/reports/<run>.html`, exit code |
+| Deployment | `bins/ci_tasks/deploy.sh` in GitHub Actions | `results/nlp/<run>.json`, `<run>/` on the `n24-runs` volume | the `n24-api` Modal app |
 
 Every stage is a module run from the repository root with
 `uv run python -m n24.<package>.<module>`. Stages talk to each other only
@@ -185,6 +188,7 @@ The script fetches only `metrics.json`. Download the whole run before you
 score it with the eval harness:
 
 ```bash
+mkdir -p runs_modal
 uv run modal volume get n24-runs roberta-lr3e-5 runs_modal/
 ```
 
@@ -222,7 +226,7 @@ results file. It measures and does not judge.
 uv run python -m n24.eval.run --run-dir runs_modal/roberta-baseline
 ```
 
-`--data-dir` defaults to `datasets/prepared` and `--results-dir` to `results`.
+`--data-dir` defaults to `datasets/prepared` and `--results-dir` to `results/nlp`.
 
 - It runs on CPU with `torch.use_deterministic_algorithms(True)` and tokenizes
   with the run's own `max_length` from `metrics.json`, so the input matches
@@ -234,7 +238,7 @@ uv run python -m n24.eval.run --run-dir runs_modal/roberta-baseline
   to the values in `metrics.json`. These are reproducibility evidence.
 - It refuses to overwrite an existing results file.
 
-The results file `results/<run>.json` holds the eval version, the test split
+The results file `results/nlp/<run>.json` holds the eval version, the test split
 hash, the run name and directory, the git commit, both pairs of hashes, test
 accuracy, test macro F1, per-section test F1, the repeatability numbers, the
 predicted section for every test article, and the torch and transformers
@@ -261,7 +265,7 @@ uv run modal run -m n24.eval.zero_shot --model HuggingFaceTB/SmolLM2-360M-Instru
   records how many sections differ between the passes.
 - It pins the model to its current Hugging Face commit and records that
   commit, the prompt's sha256, and the git commit.
-- It writes `results/zs-<model name>.json` with the same eval version, test
+- It writes `results/llm/zs-<model name>.json` with the same eval version, test
   split hash, and metrics as the eval harness, and refuses to overwrite it.
 
 vLLM pins torch and transformers below the root `uv.lock`, so the Modal image
@@ -287,7 +291,7 @@ The criteria file holds `eval_version`, `test_split_sha256`, the
 Unknown keys or an unpinned hash are rejected. Then judge a run:
 
 ```bash
-uv run python -m n24.gate.report results/roberta-baseline.json
+uv run python -m n24.gate.report results/nlp/roberta-baseline.json
 ```
 
 The deployment gate first refuses, with exit code 2, a results file whose eval
@@ -313,6 +317,14 @@ rows link to their evidence: the results file or the run's `metrics.json`.
 | 0 | Deployable |
 | 1 | Not deployable: at least one check failed |
 | 2 | Refused: other eval version or test split |
+
+## Deploying to Modal
+
+A push to `main` that adds or changes one file under `results/nlp/` judges
+it with the deployment gate and, on exit 0, deploys the run to Modal from a
+frozen image behind proxy auth. Zero-shot results in `results/llm/` never
+deploy. [Deploying to Modal](docs/deployment.md) has the steps, the
+one-time setup, and how to call the API.
 
 ## Guardrails and CI
 
@@ -355,18 +367,19 @@ n24/
   track/         MLflow import
   eval/          eval harness
   gate/          deployment gate and its HTML template
+  deploy/        frozen Modal image that serves a gated run
   preprocess/, utils/   legacy code
 bins/            shell entry points, by purpose:
-  ci_tasks/      the CI check, run locally and by GitHub Actions
+  ci_tasks/      the CI check, run locally and by GitHub Actions, and the deploy
   data/          data preparation
   train/         local smoke test and Modal training
-  api/           serve, query, and smoke-test the inference API
+  api/           serve, query, smoke-test, and check the inference API
 scripts/         guardrail tooling, setup scripts, and the legacy news-classifier.py
 gate/            criteria.toml, and reports/ written by the deployment gate
 metrics/         metrics.json of each published Modal run
-results/         results files written by the eval harness
+results/         results files: nlp/ from the eval harness, llm/ from zero-shot scoring
 tests/           offline unit tests
-docs/            CI document and ADRs
+docs/            CI and deployment documents, and ADRs
 notebooks/       exploration notebooks (legacy)
 plans/           planning notes
 datasets/        raw and prepared data (git-ignored)
@@ -387,6 +400,9 @@ model is needed they build a tiny RoBERTa on synthetic splits.
 - `tests/test_deployment_gate.py`: the eval harness's results file,
   repeatability, and refusal to overwrite, and every pass, fail, and refusal
   path of the deployment gate.
+- `tests/test_deploy.py`: freezing a run copies only what the inference API
+  reads, serves from the copy, and rejects other weights or a non-encoder
+  checkpoint.
 - `tests/test_privacy.py`: the privacy scanner and the identity guard.
 - `tests/test_legacy.py`: the current behavior of the legacy code.
 
@@ -402,4 +418,5 @@ HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 uv run python -m unittest discover -s tes
 - [ADR 0004: The baseline model reads the abstract alone](docs/adr/0004-baseline-model-reads-abstract-alone.md)
 - [ADR 0005: Results are compared only within one eval version and test split](docs/adr/0005-eval-comparability.md)
 - [ADR 0006: MLflow is a local view imported from each run's metrics.json](docs/adr/0006-mlflow-imports-metrics-json.md)
+- [ADR 0008: Deployments are frozen Modal images of encoder runs only](docs/adr/0008-frozen-modal-image-deploys-encoder-runs-only.md)
 - [Glossary](GLOSSARY.md)

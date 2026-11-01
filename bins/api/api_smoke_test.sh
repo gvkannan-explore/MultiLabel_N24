@@ -20,30 +20,5 @@ for _ in $(seq 120); do
 done
 curl -sf "$url/docs" >/dev/null || { echo "❌ The API did not start within 120 s" >&2; exit 1; }
 
-curl -sS --fail-with-body -X POST "$url/predict" \
-    -H 'content-type: application/json' \
-    -d '{"abstracts": [
-        "The team clinched the championship with a late goal in extra time.",
-        "The chef opened a new restaurant serving seasonal small plates."
-    ]}' |
-    uv run python -c '
-import json, sys
-body = json.load(sys.stdin)
-run, sections, predictions = body["run"], body["sections"], body["predictions"]
-assert run == sys.argv[1], f"run is {run}, expected {sys.argv[1]}"
-assert len(predictions) == 2, f"{len(predictions)} predictions for 2 abstracts"
-for prediction in predictions:
-    section, logits = prediction["section"], prediction["logits"]
-    assert len(logits) == len(sections), "one logit per section"
-    best = sections[logits.index(max(logits))]
-    assert section == best, f"{section} is not the argmax {best}"
-    print("  ", section)
-' "$(basename "$run_dir")"
-echo "✅ POST /predict returns one section per abstract, each the argmax of its logits"
-
-for bad in '{"abstracts": []}' '{"abstracts": [""]}' '{}'; do
-    code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$url/predict" \
-        -H 'content-type: application/json' -d "$bad")
-    [[ $code == 422 ]] || { echo "❌ $bad returned $code, expected 422" >&2; exit 1; }
-    echo "✅ $bad is rejected with 422"
-done
+# The local server has no proxy auth, so check it without the headers.
+MODAL_PROXY_KEY='' bash bins/api/check_api.sh "$url" "$(basename "$run_dir")"

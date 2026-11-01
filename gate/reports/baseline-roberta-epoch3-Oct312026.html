@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Deployment gate: baseline-roberta-epoch3-Oct312026</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 70rem; margin: 2rem auto; padding: 0 1rem; color: #1f2328; }
+  .verdict { padding: 1rem 1.25rem; border-radius: 8px; font-size: 1.4rem; font-weight: 700; }
+  .pass { background: #dafbe1; color: #116329; }
+  .fail { background: #ffebe9; color: #a40e26; }
+  table { border-collapse: collapse; width: 100%; margin: 0.5rem 0 1.5rem; }
+  th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #d0d7de; vertical-align: top; }
+  th { background: #f6f8fa; }
+  td.num { font-variant-numeric: tabular-nums; }
+  code { font-size: 0.9em; }
+</style>
+</head>
+<body>
+<h1>Deployment gate: baseline-roberta-epoch3-Oct312026</h1>
+<p class="verdict pass">
+  DEPLOYABLE
+  (7/7 checks pass)
+</p>
+<p>
+  Judged <a href="../../results/nlp/baseline-roberta-epoch3-Oct312026.json">baseline-roberta-epoch3-Oct312026.json</a>
+  against the pre-registered <a href="../criteria.toml">criteria.toml</a>
+  at eval version 1.
+</p>
+
+<h2>Claims and falsifiers</h2>
+<table>
+  <tr><th>Group</th><th>Claim</th><th>Falsified if</th><th>Observed</th><th>Evidence</th><th>Verdict</th></tr>
+  
+  <tr>
+    <td>Accuracy</td>
+    <td>Test macro F1 meets the minimum</td>
+    <td>test macro F1 &lt; 0.75</td>
+    <td class="num">0.7858</td>
+    <td><a href="../../results/nlp/baseline-roberta-epoch3-Oct312026.json">baseline-roberta-epoch3-Oct312026.json</a></td>
+    <td class="pass">pass</td>
+  </tr>
+  
+  <tr>
+    <td>Accuracy</td>
+    <td>Test accuracy meets the minimum</td>
+    <td>test accuracy &lt; 0.75</td>
+    <td class="num">0.7988</td>
+    <td><a href="../../results/nlp/baseline-roberta-epoch3-Oct312026.json">baseline-roberta-epoch3-Oct312026.json</a></td>
+    <td class="pass">pass</td>
+  </tr>
+  
+  <tr>
+    <td>Accuracy</td>
+    <td>Every section meets the minimum F1</td>
+    <td>any section&#39;s test F1 &lt; 0.4</td>
+    <td class="num">worst: Style 0.4050</td>
+    <td><a href="../../results/nlp/baseline-roberta-epoch3-Oct312026.json">baseline-roberta-epoch3-Oct312026.json</a></td>
+    <td class="pass">pass</td>
+  </tr>
+  
+  <tr>
+    <td>Repeatability</td>
+    <td>Two prediction passes give the same output</td>
+    <td>any section differs, or any logit differs by more than 1e-05</td>
+    <td class="num">0 sections differ, max logit difference 0.00e+00</td>
+    <td><a href="../../results/nlp/baseline-roberta-epoch3-Oct312026.json">baseline-roberta-epoch3-Oct312026.json</a></td>
+    <td class="pass">pass</td>
+  </tr>
+  
+  <tr>
+    <td>Reproducibility</td>
+    <td>The evaluated weights are the trained weights</td>
+    <td>the weights&#39; sha256 differs from metrics.json</td>
+    <td class="num">ad43873b33ed</td>
+    <td><a href="../../runs_modal/baseline-roberta-epoch3-Oct312026/metrics.json">metrics.json</a></td>
+    <td class="pass">pass</td>
+  </tr>
+  
+  <tr>
+    <td>Reproducibility</td>
+    <td>The run trained on this prepared dataset</td>
+    <td>the prepared dataset&#39;s sha256 differs from metrics.json</td>
+    <td class="num">15e2655e7374</td>
+    <td><a href="../../runs_modal/baseline-roberta-epoch3-Oct312026/metrics.json">metrics.json</a></td>
+    <td class="pass">pass</td>
+  </tr>
+  
+  <tr>
+    <td>Reproducibility</td>
+    <td>The run&#39;s code is a recorded, clean commit</td>
+    <td>no git commit is recorded, or it ends in -dirty</td>
+    <td class="num">19e28580796da22e04b6bea3a35ad5316c8dccc7</td>
+    <td><a href="../../runs_modal/baseline-roberta-epoch3-Oct312026/metrics.json">metrics.json</a></td>
+    <td class="pass">pass</td>
+  </tr>
+  
+</table>
+
+<h2>Test F1 per section</h2>
+<table>
+  <tr><th>Section</th><th>F1</th><th>Minimum</th></tr>
+  
+  <tr class="">
+    <td>Style</td><td class="num">0.4050</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Well</td><td class="num">0.5517</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Fashion &amp; Style</td><td class="num">0.6755</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Your Money</td><td class="num">0.7232</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Media</td><td class="num">0.7448</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Global Business</td><td class="num">0.7583</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Education</td><td class="num">0.7643</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Economy</td><td class="num">0.7794</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Health</td><td class="num">0.7895</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Television</td><td class="num">0.7905</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Travel</td><td class="num">0.7986</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Movies</td><td class="num">0.8040</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Opinion</td><td class="num">0.8133</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Technology</td><td class="num">0.8137</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Science</td><td class="num">0.8237</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Art &amp; Design</td><td class="num">0.8298</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Theater</td><td class="num">0.8371</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Music</td><td class="num">0.8423</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Real Estate</td><td class="num">0.8553</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Food</td><td class="num">0.8596</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Books</td><td class="num">0.8698</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Dance</td><td class="num">0.9006</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Automobiles</td><td class="num">0.9106</td><td class="num">0.4</td>
+  </tr>
+  
+  <tr class="">
+    <td>Sports</td><td class="num">0.9173</td><td class="num">0.4</td>
+  </tr>
+  
+</table>
+
+<h2>Provenance</h2>
+<table>
+  <tr><th>Run directory</th><td><code>runs_modal/baseline-roberta-epoch3-Oct312026</code></td></tr>
+  <tr><th>Git commit</th><td><code>19e28580796da22e04b6bea3a35ad5316c8dccc7</code></td></tr>
+  <tr><th>Test split sha256</th><td><code>a801fdcfe3e59bee1fd7fb7f4cf2a6c0acccf905e46f5d7a1ac0b2b5aa8b5ab0</code></td></tr>
+  <tr><th>Weights sha256 (recorded / recomputed)</th><td><code>ad43873b33eda75c205097dbf6e979d7d1093f8da45d1ed19247a3f802bd4da0</code><br><code>ad43873b33eda75c205097dbf6e979d7d1093f8da45d1ed19247a3f802bd4da0</code></td></tr>
+  <tr><th>Dataset sha256 (recorded / recomputed)</th><td><code>15e2655e7374e93d4c383b36d87164ffb24d04c56411387d67ee8d64c0214b93</code><br><code>15e2655e7374e93d4c383b36d87164ffb24d04c56411387d67ee8d64c0214b93</code></td></tr>
+  <tr><th>Test articles</th><td>6124</td></tr>
+  <tr><th>torch / transformers</th><td>2.14.1 / 5.20.2</td></tr>
+</table>
+</body>
+</html>
