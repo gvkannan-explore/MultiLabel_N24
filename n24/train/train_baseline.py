@@ -1,8 +1,8 @@
 """Fine-tune RoBERTa on the prepared dataset's abstracts.
 
 Keeps the epoch with the best macro F1 on the dev split, then writes
-best_model/ and metrics.json to the output directory. The test split is not
-used. n24/train/modal_train.py runs it on a Modal GPU.
+best_model/, metrics.json, and training_report.pdf to the output directory.
+The test split is not used. n24/train/modal_train.py runs it on a Modal GPU.
 """
 
 import argparse
@@ -26,6 +26,8 @@ from transformers import (
     TrainingArguments,
     set_seed,
 )
+
+from n24.train import report
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -192,6 +194,7 @@ def train(args: argparse.Namespace, commit: str | None) -> dict:
         "log_history": trainer.state.log_history,
     }
     (output_dir / "metrics.json").write_text(json.dumps(metrics, indent=2) + "\n")
+    report.write_report(metrics, output_dir / "training_report.pdf")
     print(
         json.dumps({k: v for k, v in metrics.items() if k.startswith("dev_")}, indent=2)
     )

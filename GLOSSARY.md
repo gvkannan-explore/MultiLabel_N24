@@ -68,6 +68,10 @@ _Avoid_: determinism, stability
 A run can be rebuilt from what it recorded: its weights and dataset hashes still match, and it ran from a clean git commit.
 _Avoid_: provenance, traceability
 
+**Training report**:
+The PDF a training run writes next to its metrics.json: an executive summary of the kept epoch's dev split scores, the dev F1 of each section, and the training curves.
+_Avoid_: model card, results file (that is the eval harness's output on the test split)
+
 ## Guardrails
 
 **Guardrail**:

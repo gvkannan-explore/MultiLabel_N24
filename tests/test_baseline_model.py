@@ -197,6 +197,8 @@ class TrainBaselineTests(unittest.TestCase):
             self.assertEqual(saved["args"]["max_steps"], "2")
             self.assertIn("eval_f1_macro", saved["log_history"][0])
             self.assertFalse((root / "run/checkpoints").exists())
+            pdf = root / "run/training_report.pdf"
+            self.assertTrue(pdf.read_bytes().startswith(b"%PDF"))
 
             model = AutoModelForSequenceClassification.from_pretrained(
                 str(root / "run/best_model")
