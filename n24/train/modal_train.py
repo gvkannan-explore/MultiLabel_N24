@@ -12,6 +12,7 @@ Runs:
     uv run modal run -m n24.train.modal_train --name smoke-1 --args "--max-steps 5"
     uv run modal run -m n24.train.modal_train --name roberta-baseline
     uv run modal volume get n24-runs roberta-baseline runs_modal/
+    uv run modal volume get n24-runs roberta-baseline/training_report.pdf .
 """
 
 import shlex
