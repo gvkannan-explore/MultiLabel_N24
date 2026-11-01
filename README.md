@@ -255,8 +255,8 @@ and test split ([ADR 0005](docs/adr/0005-eval-comparability.md)).
 no training, using vLLM on a Modal L4 GPU. Run it from the repository root:
 
 ```bash
-uv run modal run -m n24.eval.zero_shot --model Qwen/Qwen3-0.6B
-uv run modal run -m n24.eval.zero_shot --model HuggingFaceTB/SmolLM2-360M-Instruct
+uv run modal run -m n24.eval.zero_shot::main --model Qwen/Qwen3-0.6B
+uv run modal run -m n24.eval.zero_shot::main --model HuggingFaceTB/SmolLM2-360M-Instruct
 ```
 
 - The prompt lists the sections and gives the abstract. vLLM decodes
