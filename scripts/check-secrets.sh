@@ -12,6 +12,10 @@ if [[ ! -x "$scanner" ]]; then
 fi
 cd "$repo_root"
 if [[ $# -eq 0 ]]; then
+    if ! git rev-parse --verify --quiet HEAD >/dev/null; then
+        echo 'Secret scan: no commits yet, so no history to scan.'
+        exit 0
+    fi
     # Scan what this repository can publish. --all would also cover remote-tracking
     # refs and app checkpoint refs (refs/t3/*) that this repository never pushes.
     set -- '--log-opts=--branches --tags HEAD'

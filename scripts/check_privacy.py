@@ -93,6 +93,15 @@ def private_path(path: str) -> bool:
 
 
 def scan(root: Path, mode: str, ref: str = "HEAD") -> int:
+    if (
+        mode == "history"
+        and subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+            capture_output=True,
+        ).returncode
+    ):
+        print(f"Privacy scan: no commits at {ref}, so no history to scan.")
+        return 0
     identities = local_identities(root)
     problems = 0
     versions = (
