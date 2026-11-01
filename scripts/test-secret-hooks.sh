@@ -20,6 +20,15 @@ git init --quiet
 git config user.name gvkannan-explore
 git config user.email 177444697+gvkannan-explore@users.noreply.github.com
 git config core.hooksPath .githooks
+# A repository with no commits yet has no history, so both history scans pass.
+if ! python3 scripts/check_privacy.py history > "$tmp_dir/empty-privacy.log" 2>&1; then
+    echo 'FAIL: history privacy scan failed in a repository with no commits' >&2
+    exit 1
+fi
+if ! bash scripts/check-secrets.sh > "$tmp_dir/empty-secrets.log" 2>&1; then
+    echo 'FAIL: history secret scan failed in a repository with no commits' >&2
+    exit 1
+fi
 printf 'A clean file\n' > clean.txt
 git add clean.txt
 git commit --quiet -m 'Clean fixture'
