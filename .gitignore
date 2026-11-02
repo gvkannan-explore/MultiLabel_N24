@@ -183,3 +183,4 @@ experiment_runs/*
 data/*
 notebooks/inference_api/*
 plans/llm-workflow-lesson.html
+plans/*.packed.html
