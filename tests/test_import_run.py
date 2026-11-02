@@ -113,7 +113,7 @@ class ImportRunTests(unittest.TestCase):
         assert run_id is not None
         run = mlflow.get_run(run_id)
         self.assertEqual(run.info.run_name, "smoke-run")
-        self.assertEqual(run.data.metrics["dev_f1_macro"], metrics["dev_f1_macro"])
+        self.assertEqual(run.data.metrics["dev_f1_macro"], metrics.dev_f1_macro)
         self.assertIn("eval_f1_macro", run.data.metrics)
 
     def test_runs_with_other_names_are_kept_apart(self):

@@ -13,6 +13,7 @@ from collections import Counter
 from pathlib import Path
 
 from datasets import ClassLabel, Dataset, DatasetDict, Features, Value
+from rich import print
 
 SPLIT_FILES = {
     "train": "nytimes_train.json",

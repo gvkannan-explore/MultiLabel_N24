@@ -8,7 +8,8 @@ import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel, Field, StringConstraints, TypeAdapter
 
-from n24.eval.run import RunMetrics, compute_logits, load_model
+from n24.eval.run import compute_logits, load_model
+from n24.train.metrics import TrainingMetrics
 
 
 class PredictRequest(BaseModel):
@@ -34,8 +35,7 @@ def create_app(run_dir: Path) -> FastAPI:
 
     # Loading the heavy initializations before the predict/post call.
     torch.use_deterministic_algorithms(True)
-    metrics = RunMetrics.model_validate_json((run_dir / "metrics.json").read_text())
-    max_len = int(metrics.args["max_length"])
+    metrics = TrainingMetrics.from_run_dir(run_dir)
 
     # Give the model-directory, not the safe-tensors:
     tokenizer, model = load_model(model_dir=run_dir / "best_model")
@@ -50,7 +50,7 @@ def create_app(run_dir: Path) -> FastAPI:
                 tokenizer=tokenizer,
                 model=model,
                 abstracts=request.abstracts,
-                max_length=max_len,
+                max_length=metrics.max_length,
             )
             section_ids = logits.argmax(axis=-1)  # shape (n,), one id per abstract
 
