@@ -68,6 +68,10 @@ _Avoid_: release, rollout, ship
 Two prediction passes over the test split, each with a fresh model load, give the same sections and logits within a tolerance.
 _Avoid_: determinism, stability
 
+**External probe**:
+An abstract from outside N24News's 2010–2020 range with a hand-inferred section, used as a small diagnostic apart from the test split.
+_Avoid_: OOD example, external test set
+
 **Reproducibility**:
 A run can be rebuilt from what it recorded: its weights and dataset hashes still match, and it ran from a clean git commit.
 _Avoid_: provenance, traceability

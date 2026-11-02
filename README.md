@@ -251,61 +251,15 @@ uv run python -m n24.track.import_run experiment_runs/smoke-1/metrics.json
 uv run mlflow ui --backend-store-uri sqlite:///experiment_runs/mlflow.db
 ```
 
-## Eval harness
+## Evaluation
 
-`n24/eval/run.py` scores one trained run on the test split and writes its
-results file. It measures and does not judge.
-
-```bash
-uv run python -m n24.eval.run --run-dir runs_modal/roberta-baseline
-```
-
-`--data-dir` defaults to `datasets/prepared` and `--results-dir` to `results/nlp`.
-
-- It runs on CPU with `torch.use_deterministic_algorithms(True)` and tokenizes
-  with the run's own `max_length` from `metrics.json`, so the input matches
-  training.
-- It predicts the test split twice, loading the model fresh each time. The
-  number of sections that differ between the passes and the largest logit
-  difference are the repeatability numbers.
-- It recomputes the weights and prepared dataset hashes and records them next
-  to the values in `metrics.json`. These are reproducibility evidence.
-- It refuses to overwrite an existing results file.
-
-The results file `results/nlp/<run>.json` holds the eval version, the test split
-hash, the run name and directory, the git commit, both pairs of hashes, test
-accuracy, test macro F1, per-section test F1, the repeatability numbers, the
-predicted section for every test article, and the torch and transformers
-versions.
-
-`EVAL_VERSION` in `n24/eval/run.py` is the eval version. Bump it whenever the
-harness or the test split changes, then rerun the harness for every model,
-the baseline model included. Results are only compared within one eval version
-and test split ([ADR 0005](docs/adr/0005-eval-comparability.md)).
-
-## Zero-shot LLMs
-
-`n24/eval/zero_shot.py` scores an instruction-tuned LLM on the test split with
-no training, using vLLM on a Modal L4 GPU. Run it from the repository root:
-
-```bash
-uv run modal run -m n24.eval.zero_shot::main --model Qwen/Qwen3-0.6B
-uv run modal run -m n24.eval.zero_shot::main --model HuggingFaceTB/SmolLM2-360M-Instruct
-```
-
-- The prompt lists the sections and gives the abstract. vLLM decodes
-  greedily and may answer only with a section name.
-- It predicts the test split twice, each pass in a fresh container, and
-  records how many sections differ between the passes.
-- It pins the model to its current Hugging Face commit and records that
-  commit, the prompt's sha256, and the git commit.
-- It writes `results/llm/zs-<model name>.json` with the same eval version, test
-  split hash, and metrics as the eval harness, and refuses to overwrite it.
-
-vLLM pins torch and transformers below the root `uv.lock`, so the Modal image
-installs its own project, `zero-shot/`. After you change
-`zero-shot/pyproject.toml`, run `uv lock` in that folder. The deployment
-gate does not judge zero-shot results.
+`n24/eval/run.py` (the eval harness) scores a trained run on the test split
+and writes `results/nlp/<run>.json`. `n24/eval/zero_shot.py` scores an
+instruction-tuned LLM on a Modal GPU and writes `results/llm/`.
+`n24/eval/probes.py` scores a model on the external probes and writes
+`results/probes/`. [Evaluation](docs/evaluation.md) has the commands, what
+each results file holds, and when to bump the eval version
+([ADR 0005](docs/adr/0005-eval-comparability.md)).
 
 ## Deployment gate
 
@@ -411,9 +365,9 @@ bins/            shell entry points, by purpose:
 scripts/         guardrail tooling, setup scripts, and the legacy news-classifier.py
 gate/            criteria.toml, and reports/ written by the deployment gate
 metrics/         metrics.json of each published Modal run
-results/         results files: nlp/ from the eval harness, llm/ from zero-shot scoring
+results/         results files: nlp/ from the eval harness, llm/ from zero-shot scoring, probes/ from external probes
 tests/           offline unit tests
-docs/            CI and deployment documents, and ADRs
+docs/            CI, evaluation, and deployment documents, and ADRs
 notebooks/       exploration notebooks (legacy)
 plans/           planning notes
 datasets/        raw and prepared data (git-ignored)
