@@ -22,12 +22,15 @@
 
 ## Code
 
-- Inline logic used once; extract a function when it has a second caller or is independently testable.
-- Let exceptions propagate. Catch only a specific exception you can handle at that point.
-- Type everything precisely; use `typing.Any` only where a library forces it.
-- Validate unknown values once, at the boundary that owns them, then pass typed values inward. Trust guarantees from schemas, constructors, and types without rechecking them.
+- Write a failing test first, then the code that makes it pass, unless told otherwise. Exception: `tests/test_legacy.py` pins existing legacy behavior, so its tests describe code that already exists.
 - Build the simplest design that fully meets current requirements and will last: no speculative abstractions or configuration, and no stopgaps meant to be replaced.
     - Before adding complexity for an unlikely race or security edge case, explain the failure mode, likelihood, and complexity cost to the user and get their buy-in.
+- Inline logic used once; extract a function when it has a second caller or is independently testable.
+- Let exceptions propagate. Catch only a specific exception you can handle at that point.
+- Delete dead code in the code you change. Ask before deleting code outside the task, and never delete legacy code.
+- Name things descriptively, for clarity over brevity: `wait_until_observation_is_saved=True`, not `wait=True`. Don't rename existing API endpoints.
+- Type everything precisely; use `typing.Any` only where a library forces it.
+- Validate unknown values once, at the boundary that owns them, then pass typed values inward. Trust guarantees from schemas, constructors, and types without rechecking them.
 - Grow the system in layers: start from the smallest version that works end to end, and add each capability on top of a working product.
 - Prefer established, well-maintained libraries over reimplementing common functionality.
 - When printing to the terminal, use rich.print or logging.info whenever appropriate.
