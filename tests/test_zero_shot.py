@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import cast
+from unittest import mock
 
 from sklearn.metrics import accuracy_score, f1_score
 from test_baseline_model import SECTIONS, fixture_splits, write_splits
@@ -112,6 +113,18 @@ class ZeroShotTests(unittest.TestCase):
         self.evaluate(labels, labels)
         with self.assertRaises(FileExistsError):
             self.evaluate(labels, labels)
+
+
+class GpuTests(unittest.TestCase):
+    def test_without_gpu_the_function_keeps_its_default_gpus(self):
+        function = zero_shot.predict_remote
+        self.assertIs(zero_shot.on_gpu(function, None), function)
+
+    def test_gpu_overrides_the_default(self):
+        function = zero_shot.predict_remote
+        with mock.patch.object(function, "with_options") as with_options:
+            zero_shot.on_gpu(function, "L40S")
+        with_options.assert_called_once_with(gpu="L40S")
 
 
 if __name__ == "__main__":
