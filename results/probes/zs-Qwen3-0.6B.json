@@ -1,0 +1,16 @@
+{
+  "run": "zs-Qwen3-0.6B",
+  "probes_sha256": "3abcd050832600406e0f3744d2774ef9cd966406db9bc5843f2e8ce6d54f8d7a",
+  "predictions": {
+    "E01": "Media",
+    "E02": "Media",
+    "E03": "Media",
+    "E04": "Books",
+    "E05": "Media",
+    "E06": "Health",
+    "E07": "Media",
+    "E08": "Media"
+  },
+  "correct": 2,
+  "total": 8
+}
