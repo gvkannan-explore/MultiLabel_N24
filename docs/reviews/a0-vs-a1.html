@@ -1,0 +1,749 @@
+<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>A0 vs A1 · brownfield pilot code review</title><style>
+:root{--bg:#fff;--fg:#1d1f23;--mut:#666b75;--line:#e3e5e8;--card:#f7f8fa;--add:#e6f6ea;--addf:#1a7f37;--del:#fdecec;--delf:#c62828;--hunk:#eef2ff;--hunkf:#4b5bb5;--warn:#fff4dc;--warnf:#8a5a00}
+@media (prefers-color-scheme:dark){:root{--bg:#15171a;--fg:#e6e8eb;--mut:#9aa0aa;--line:#2b2f35;--card:#1c1f23;--add:#11301c;--addf:#6fd68e;--del:#3a1717;--delf:#ff8a8a;--hunk:#1d2340;--hunkf:#9fb0ff;--warn:#3a2d10;--warnf:#ffcf70}}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 -apple-system,system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+main{max-width:1500px;margin:0 auto;padding:28px}h1{margin:0 0 4px;font-size:24px}h2{margin:36px 0 4px;font-size:19px}h3{margin:0 0 10px;font-size:15px;color:var(--mut)}
+.meta,.blurb,.empty{color:var(--mut);font-size:13px}code{font:12.5px ui-monospace,Menlo,monospace}
+.verdict{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--addf);border-radius:8px;padding:14px 18px;margin:18px 0}
+table{border-collapse:collapse;width:100%;font-size:13.5px}td,th{border-bottom:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}th{color:var(--mut);font-weight:600}
+td.win{color:var(--addf);font-weight:600}td.lose{color:var(--delf);font-weight:600}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}.col{min-width:0}
+@media (max-width:1000px){.cols{grid-template-columns:1fr}}
+details.file{border:1px solid var(--line);border-radius:8px;margin:0 0 12px;background:var(--card)}details.file>summary{cursor:pointer;padding:8px 12px}
+.stat{float:right;font:12px ui-monospace,monospace}.a{color:var(--addf)}.d{color:var(--delf)}
+.note{margin:0;padding:6px 12px 8px;font-size:13px}
+.callout{margin:4px 12px 8px;padding:8px 10px;border-radius:6px;background:var(--warn);color:var(--fg);font-size:13px}
+.tag{display:inline-block;font:600 11px system-ui;padding:1px 7px;border-radius:9px;margin-right:6px;color:#fff;background:#b26a00}.tag-gap{background:#c62828}.tag-drift{background:#b26a00}.tag-fragile{background:#7b5cc4}.tag-scope{background:#55606e}
+pre.diff{margin:0;padding:8px 0;overflow-x:auto;font:12px/1.45 ui-monospace,Menlo,monospace;border-top:1px solid var(--line);background:var(--bg)}
+pre.diff span{display:block;padding:0 12px;white-space:pre}.add{background:var(--add);color:var(--addf)}.del{background:var(--del);color:var(--delf)}.hunk{background:var(--hunk);color:var(--hunkf)}
+ul.files{font-size:13px;padding-left:20px}.pseudo{background:var(--card);border:1px dashed var(--line);border-radius:6px;padding:10px 14px;font:12.5px ui-monospace,monospace;white-space:pre;overflow-x:auto}
+</style></head><body><main>
+<h1>A0 vs A1 · brownfield pilot code review</h1>
+<div class=meta>Local branches, <code>git diff 26e1ae3..&lt;head&gt;</code> (not GitHub PRs) ·
+A0 <code>t3/execute-a0-brownfield</code> @ <code>53b6157</code> · 10 files, <span class=a>+1674</span> <span class=d>−89</span> ·
+A1 <code>t3/execute-a1-brownfield</code> @ <code>d227456</code> · 38 files, <span class=a>+2636</span> <span class=d>−3</span> · generated 2026-11-01 22:48</div>
+
+<div class=verdict><b>Verdict: near tie, slight edge to A0, which is merged.</b> With skill-related changes excluded, the production change is identical (same trained weights). A0's test fits the existing suite, reads token IDs from the tokenizer and checks the API against <code>run.evaluate</code>. A1's test asserts logits parity (stronger) but hard-codes IDs and skips the eval harness; A1 also names the exact CUDA device. Both missed <code>ultrabert</code> in the deploy allowlist; the merge PR fixes it test-first. A1's own <code>plans/A1_SKILLS_USED.md</code> says the run wasn't a clean, blinded arm, so treat this as one sample.</div>
+
+<h2>Scorecard against the pilot rubric</h2>
+<table><tr><th>Check</th><th>A0</th><th>A1</th><th>Evidence</th></tr><tr><td>Production behaviour</td><td class=''>Same</td><td class=''>Same</td><td>Identical ModernBERT <code>weights_sha256</code> (<code>dec54d2f…</code>) from full runs on both branches.</td></tr><tr><td>Contract files untouched (trap 1)</td><td class='win'>✔</td><td class='win'>✔</td><td>Neither edits <code>n24/eval/run.py</code>, <code>gate/criteria.toml</code>, <code>scripts/news-classifier.py</code>, <code>tests/test_legacy.py</code>.</td></tr><tr><td>No duplicate paths (trap 2)</td><td class='win'>✔</td><td class=''>✔*</td><td>*Within the scored code. A1's skill-driven <code>encoder_smoke.sh</code> duplicates <code>smoke_test.sh</code> (section 3, not scored).</td></tr><tr><td>UltraBERT servable (1b done)</td><td class='lose'>✘</td><td class='lose'>✘</td><td>Both omit <code>ultrabert</code> from <code>ENCODER_MODEL_TYPES</code>. A1 at least flags it.</td></tr><tr><td>Step 1b changes in 1a's files (trap 5)</td><td class=''>≈0</td><td class=''>≈0</td><td>Neither copied ModernBERT code for UltraBERT; the training needed no new code.</td></tr><tr><td>Test quality</td><td class='win'>Better fit</td><td class=''>Stronger assert</td><td>A0: label parity with the eval harness, tokenizer-derived IDs, existing file. A1: logits parity, but hard-coded IDs and no <code>run.evaluate</code>.</td></tr><tr><td>Scored code + test + docs LOC</td><td class=''>+98 −6 / 6 files</td><td class=''>+102 −2 / 4 files</td><td>Excludes skill-driven scaffolding, metrics, plans and copied skills.</td></tr><tr><td>Security</td><td class=''>No findings</td><td class=''>No findings</td><td>Neither scored change handles untrusted input. (A1's unscored scripts also regex-check their Modal inputs.)</td></tr><tr><td>Merged</td><td class='win'>✔</td><td class=''></td><td>A0's <code>n24/</code>, tests, README and metrics, plus the <code>ultrabert</code> fix, go to <code>main</code> in a clean PR. A0's AGENTS.md git rules are left out.</td></tr></table>
+
+<h2>What both branches did to the trainer</h2>
+<div class=pseudo>if --use-cpu:   Trainer(use_cpu=True), bf16 = False
+else:           bf16 = cuda available and supports bf16      # unchanged default
+metrics.gpu   = device name if the Trainer ran on cuda else None   # was: "is cuda present"
+freeze allows model_type "modernbert"                       # "ultrabert" still rejected</div>
+
+<section><h2>1 · Core logic</h2><p class=blurb>Production code and the tests that prove it. Shown side by side: this is the part that answers “which code is better”.</p><div class="cols"><div class="col"><h3>A0 · no skills</h3><details class="file" data-file="a0:n24/deploy/freeze.py" open><summary><code>n24/deploy/freeze.py</code> <span class="stat"><span class="a">+1</span> <span class="d">−0</span></span></summary><div class="callout"><span class="tag tag-gap">Gap</span> UltraBERT's <code>model_type</code> is <code>ultrabert</code>, which is not in this set. Step 1b trained UltraBERT, but <code>freeze_run</code> will raise <code>ValueError</code> on it, so it can't be served. A0 does not mention this.</div><p class=note>The only change ModernBERT needed: the trainer, eval harness and API already load via <code>AutoTokenizer</code>/<code>AutoModel…</code>.</p><pre class="diff"><span class="hunk">&#64;&#64; -20,6 +20,7 &#64;&#64; ENCODER_MODEL_TYPES = frozenset(</span>
+<span class="ctx">         &quot;deberta-v2&quot;,</span>
+<span class="ctx">         &quot;distilbert&quot;,</span>
+<span class="ctx">         &quot;electra&quot;,</span>
+<span class="add">+        &quot;modernbert&quot;,</span>
+<span class="ctx">         &quot;roberta&quot;,</span>
+<span class="ctx">         &quot;xlm-roberta&quot;,</span>
+<span class="ctx">     }</span></pre></details><details class="file" data-file="a0:n24/train/train_baseline.py" open><summary><code>n24/train/train_baseline.py</code> <span class="stat"><span class="a">+13</span> <span class="d">−3</span></span></summary><p class=note>Adds <code>--use-cpu</code> so the 5-step smoke run can be forced onto CPU; disables bf16 in that mode and reports <code>gpu</code> from the device the Trainer actually used, not from <code>cuda.is_available()</code>.</p><pre class="diff"><span class="hunk">&#64;&#64; -1,4 +1,4 &#64;&#64;</span>
+<span class="del">-&quot;&quot;&quot;Fine-tune RoBERTa on the prepared dataset&#x27;s abstracts.</span>
+<span class="add">+&quot;&quot;&quot;Fine-tune a sequence classifier on the prepared dataset&#x27;s abstracts.</span>
+<span class="ctx"> </span>
+<span class="ctx"> Keeps the epoch with the best macro F1 on the dev split, then writes</span>
+<span class="ctx"> best_model/, metrics.json, and training_report.pdf to the output directory.</span>
+<span class="hunk">&#64;&#64; -162,7 +162,10 &#64;&#64; def train(args: argparse.Namespace, commit: str) -&gt; TrainingMetrics:</span>
+<span class="ctx">             metric_for_best_model=&quot;f1_macro&quot;,</span>
+<span class="ctx">             save_total_limit=1,</span>
+<span class="ctx">             save_only_model=True,</span>
+<span class="del">-            bf16=torch.cuda.is_available() and torch.cuda.is_bf16_supported(),</span>
+<span class="add">+            use_cpu=args.use_cpu,</span>
+<span class="add">+            bf16=not args.use_cpu</span>
+<span class="add">+            and torch.cuda.is_available()</span>
+<span class="add">+            and torch.cuda.is_bf16_supported(),</span>
+<span class="ctx">             logging_steps=50,</span>
+<span class="ctx">             report_to=&quot;none&quot;,</span>
+<span class="ctx">             seed=args.seed,</span>
+<span class="hunk">&#64;&#64; -199,7 +202,9 &#64;&#64; def train(args: argparse.Namespace, commit: str) -&gt; TrainingMetrics:</span>
+<span class="ctx">         &quot;args&quot;: {key: str(value) for key, value in vars(args).items()},</span>
+<span class="ctx">         &quot;git_commit&quot;: commit,</span>
+<span class="ctx">         # Modal picks the first free GPU from a list, so record which one ran.</span>
+<span class="del">-        &quot;gpu&quot;: torch.cuda.get_device_name() if torch.cuda.is_available() else None,</span>
+<span class="add">+        &quot;gpu&quot;: (</span>
+<span class="add">+            torch.cuda.get_device_name() if trainer.args.device.type == &quot;cuda&quot; else None</span>
+<span class="add">+        ),</span>
+<span class="ctx">         &quot;dataset_sha256&quot;: dataset_sha256(Path(args.data_dir)),</span>
+<span class="ctx">         &quot;weights_sha256&quot;: sha256_file(best_dir / &quot;model.safetensors&quot;),</span>
+<span class="ctx">         # One entry per logging step and per evaluation: the training curves.</span>
+<span class="hunk">&#64;&#64; -222,6 +227,11 &#64;&#64; def parse_args(argv: list[str] | None = None) -&gt; argparse.Namespace:</span>
+<span class="ctx">     parser.add_argument(&quot;--batch-size&quot;, type=int, default=32)</span>
+<span class="ctx">     parser.add_argument(&quot;--max-length&quot;, type=int, default=128)</span>
+<span class="ctx">     parser.add_argument(&quot;--seed&quot;, type=int, default=42)</span>
+<span class="add">+    parser.add_argument(</span>
+<span class="add">+        &quot;--use-cpu&quot;,</span>
+<span class="add">+        action=&quot;store_true&quot;,</span>
+<span class="add">+        help=&quot;Train on CPU even when a GPU is available&quot;,</span>
+<span class="add">+    )</span>
+<span class="ctx">     parser.add_argument(</span>
+<span class="ctx">         &quot;--max-steps&quot;,</span>
+<span class="ctx">         type=int,</span></pre></details><details class="file" data-file="a0:tests/test_baseline_model.py" open><summary><code>tests/test_baseline_model.py</code> <span class="stat"><span class="a">+8</span> <span class="d">−0</span></span></summary><p class=note>Pins that <code>--use-cpu</code> is off by default. Low value on its own (it tests argparse), but cheap.</p><pre class="diff"><span class="hunk">&#64;&#64; -143,6 +143,14 &#64;&#64; def make_tiny_run(root: Path) -&gt; tuple[Path, Path]:</span>
+<span class="ctx"> </span>
+<span class="ctx"> </span>
+<span class="ctx"> class TrainBaselineTests(unittest.TestCase):</span>
+<span class="add">+    def test_cpu_training_is_opt_in(self):</span>
+<span class="add">+        default = train_baseline.parse_args([&quot;--output-dir&quot;, &quot;experiment_runs/default&quot;])</span>
+<span class="add">+        cpu = train_baseline.parse_args(</span>
+<span class="add">+            [&quot;--output-dir&quot;, &quot;experiment_runs/cpu&quot;, &quot;--use-cpu&quot;]</span>
+<span class="add">+        )</span>
+<span class="add">+        self.assertFalse(default.use_cpu)</span>
+<span class="add">+        self.assertTrue(cpu.use_cpu)</span>
+<span class="add">+</span>
+<span class="ctx">     def test_metrics_match_scikit_learn(self):</span>
+<span class="ctx">         import numpy as np</span>
+<span class="ctx">         from sklearn.metrics import accuracy_score, f1_score</span></pre></details><details class="file" data-file="a0:tests/test_deploy.py" open><summary><code>tests/test_deploy.py</code> <span class="stat"><span class="a">+63</span> <span class="d">−2</span></span></summary><p class=note>One end-to-end test placed next to the existing freeze tests: trains a tiny ModernBERT, scores it through <code>run.evaluate</code>, freezes it, deletes the run dir, and asserts the API's labels equal the eval harness's predictions. Reuses the class fixtures (<code>self.root</code>, <code>self.dest</code>) and derives special-token IDs from the tokenizer.</p><pre class="diff"><span class="hunk">&#64;&#64; -11,11 +11,17 &#64;&#64; import unittest</span>
+<span class="ctx"> from pathlib import Path</span>
+<span class="ctx"> </span>
+<span class="ctx"> from fastapi.testclient import TestClient</span>
+<span class="del">-from test_baseline_model import make_tiny_run</span>
+<span class="add">+from test_baseline_model import (</span>
+<span class="add">+    fixture_splits,</span>
+<span class="add">+    make_tiny_run,</span>
+<span class="add">+    save_tiny_roberta,</span>
+<span class="add">+    write_splits,</span>
+<span class="add">+)</span>
+<span class="ctx"> </span>
+<span class="ctx"> from n24.api.app import create_app</span>
+<span class="ctx"> from n24.deploy.freeze import freeze_run</span>
+<span class="del">-from n24.train.train_baseline import sha256_file</span>
+<span class="add">+from n24.eval import run</span>
+<span class="add">+from n24.train.train_baseline import parse_args, sha256_file, train</span>
+<span class="ctx"> </span>
+<span class="ctx"> </span>
+<span class="ctx"> class FreezeRunTests(unittest.TestCase):</span>
+<span class="hunk">&#64;&#64; -68,6 +74,61 &#64;&#64; class FreezeRunTests(unittest.TestCase):</span>
+<span class="ctx">             freeze_run(self.run_dir, self.weights, self.dest)</span>
+<span class="ctx">         self.assertFalse(self.dest.exists())</span>
+<span class="ctx"> </span>
+<span class="add">+    def test_modernbert_trains_evaluates_and_serves_from_frozen_copy(self):</span>
+<span class="add">+        from transformers import AutoTokenizer, ModernBertConfig, ModernBertModel</span>
+<span class="add">+</span>
+<span class="add">+        from n24.data.prepare_data import prepare</span>
+<span class="add">+</span>
+<span class="add">+        news = self.root / &quot;news&quot;</span>
+<span class="add">+        news.mkdir()</span>
+<span class="add">+        write_splits(news, fixture_splits())</span>
+<span class="add">+        data_dir = self.root / &quot;prepared&quot;</span>
+<span class="add">+        prepare(news, num_sections=3).save_to_disk(str(data_dir))</span>
+<span class="add">+        model_dir = self.root / &quot;modernbert&quot;</span>
+<span class="add">+        save_tiny_roberta(</span>
+<span class="add">+            model_dir, [record[&quot;abstract&quot;] for record in fixture_splits()[&quot;train&quot;]]</span>
+<span class="add">+        )</span>
+<span class="add">+        tokenizer = AutoTokenizer.from_pretrained(str(model_dir))</span>
+<span class="add">+        ModernBertModel(</span>
+<span class="add">+            ModernBertConfig(</span>
+<span class="add">+                vocab_size=len(tokenizer),</span>
+<span class="add">+                hidden_size=32,</span>
+<span class="add">+                num_hidden_layers=2,</span>
+<span class="add">+                num_attention_heads=2,</span>
+<span class="add">+                intermediate_size=64,</span>
+<span class="add">+                max_position_embeddings=128,</span>
+<span class="add">+                pad_token_id=tokenizer.pad_token_id,</span>
+<span class="add">+                bos_token_id=tokenizer.bos_token_id,</span>
+<span class="add">+                eos_token_id=tokenizer.eos_token_id,</span>
+<span class="add">+            )</span>
+<span class="add">+        ).save_pretrained(str(model_dir))</span>
+<span class="add">+        run_dir = self.root / &quot;modernbert-run&quot;</span>
+<span class="add">+        args = parse_args([</span>
+<span class="add">+            &quot;--model&quot;, str(model_dir),</span>
+<span class="add">+            &quot;--data-dir&quot;, str(data_dir),</span>
+<span class="add">+            &quot;--output-dir&quot;, str(run_dir),</span>
+<span class="add">+            &quot;--batch-size&quot;, &quot;4&quot;,</span>
+<span class="add">+            &quot;--max-steps&quot;, &quot;2&quot;,</span>
+<span class="add">+            &quot;--use-cpu&quot;,</span>
+<span class="add">+        ])  # fmt: skip</span>
+<span class="add">+        metrics = train(args, &quot;abc123&quot;)</span>
+<span class="add">+        results = run.evaluate(run_dir, data_dir, self.root / &quot;results&quot;)</span>
+<span class="add">+        freeze_run(run_dir, metrics.weights_sha256, self.dest)</span>
+<span class="add">+        shutil.rmtree(run_dir)</span>
+<span class="add">+        client = TestClient(create_app(self.dest / &quot;modernbert-run&quot;))</span>
+<span class="add">+        response = client.post(</span>
+<span class="add">+            &quot;/predict&quot;,</span>
+<span class="add">+            json={</span>
+<span class="add">+                &quot;abstracts&quot;: [record[&quot;abstract&quot;] for record in fixture_splits()[&quot;test&quot;]]</span>
+<span class="add">+            },</span>
+<span class="add">+        )</span>
+<span class="add">+        self.assertEqual(response.status_code, 200, response.text)</span>
+<span class="add">+        body = response.json()</span>
+<span class="add">+        self.assertEqual(</span>
+<span class="add">+            [body[&quot;sections&quot;].index(item[&quot;section&quot;]) for item in body[&quot;predictions&quot;]],</span>
+<span class="add">+            results.predictions,</span>
+<span class="add">+        )</span>
+<span class="add">+</span>
+<span class="ctx"> </span>
+<span class="ctx"> if __name__ == &quot;__main__&quot;:</span>
+<span class="ctx">     unittest.main()</span></pre></details></div><div class="col"><h3>A1 · 8 skills</h3><details class="file" data-file="a1:n24/deploy/freeze.py" open><summary><code>n24/deploy/freeze.py</code> <span class="stat"><span class="a">+1</span> <span class="d">−0</span></span></summary><div class="callout"><span class="tag tag-gap">Gap</span> Same miss as A0: <code>ultrabert</code> is absent. A1 noticed (its <code>run_a1.sh</code> checks for exactly this, and its tickets say “pending”) but did not fix it.</div><p class=note>Identical to A0, byte for byte.</p><pre class="diff"><span class="hunk">&#64;&#64; -20,6 +20,7 &#64;&#64; ENCODER_MODEL_TYPES = frozenset(</span>
+<span class="ctx">         &quot;deberta-v2&quot;,</span>
+<span class="ctx">         &quot;distilbert&quot;,</span>
+<span class="ctx">         &quot;electra&quot;,</span>
+<span class="add">+        &quot;modernbert&quot;,</span>
+<span class="ctx">         &quot;roberta&quot;,</span>
+<span class="ctx">         &quot;xlm-roberta&quot;,</span>
+<span class="ctx">     }</span></pre></details><details class="file" data-file="a1:n24/train/train_baseline.py" open><summary><code>n24/train/train_baseline.py</code> <span class="stat"><span class="a">+10</span> <span class="d">−2</span></span></summary><p class=note>Same three changes as A0. Passes <code>trainer.args.device</code> to <code>get_device_name</code>, which names the exact device on multi-GPU hosts (a small improvement over A0).</p><pre class="diff"><span class="hunk">&#64;&#64; -162,10 +162,13 &#64;&#64; def train(args: argparse.Namespace, commit: str) -&gt; TrainingMetrics:</span>
+<span class="ctx">             metric_for_best_model=&quot;f1_macro&quot;,</span>
+<span class="ctx">             save_total_limit=1,</span>
+<span class="ctx">             save_only_model=True,</span>
+<span class="del">-            bf16=torch.cuda.is_available() and torch.cuda.is_bf16_supported(),</span>
+<span class="add">+            bf16=not args.use_cpu</span>
+<span class="add">+            and torch.cuda.is_available()</span>
+<span class="add">+            and torch.cuda.is_bf16_supported(),</span>
+<span class="ctx">             logging_steps=50,</span>
+<span class="ctx">             report_to=&quot;none&quot;,</span>
+<span class="ctx">             seed=args.seed,</span>
+<span class="add">+            use_cpu=args.use_cpu,</span>
+<span class="ctx">         ),</span>
+<span class="ctx">         train_dataset=tokenized[&quot;train&quot;],</span>
+<span class="ctx">         eval_dataset=tokenized[&quot;dev&quot;],</span>
+<span class="hunk">&#64;&#64; -199,7 +202,11 &#64;&#64; def train(args: argparse.Namespace, commit: str) -&gt; TrainingMetrics:</span>
+<span class="ctx">         &quot;args&quot;: {key: str(value) for key, value in vars(args).items()},</span>
+<span class="ctx">         &quot;git_commit&quot;: commit,</span>
+<span class="ctx">         # Modal picks the first free GPU from a list, so record which one ran.</span>
+<span class="del">-        &quot;gpu&quot;: torch.cuda.get_device_name() if torch.cuda.is_available() else None,</span>
+<span class="add">+        &quot;gpu&quot;: (</span>
+<span class="add">+            torch.cuda.get_device_name(trainer.args.device)</span>
+<span class="add">+            if trainer.args.device.type == &quot;cuda&quot;</span>
+<span class="add">+            else None</span>
+<span class="add">+        ),</span>
+<span class="ctx">         &quot;dataset_sha256&quot;: dataset_sha256(Path(args.data_dir)),</span>
+<span class="ctx">         &quot;weights_sha256&quot;: sha256_file(best_dir / &quot;model.safetensors&quot;),</span>
+<span class="ctx">         # One entry per logging step and per evaluation: the training curves.</span>
+<span class="hunk">&#64;&#64; -222,6 +229,7 &#64;&#64; def parse_args(argv: list[str] | None = None) -&gt; argparse.Namespace:</span>
+<span class="ctx">     parser.add_argument(&quot;--batch-size&quot;, type=int, default=32)</span>
+<span class="ctx">     parser.add_argument(&quot;--max-length&quot;, type=int, default=128)</span>
+<span class="ctx">     parser.add_argument(&quot;--seed&quot;, type=int, default=42)</span>
+<span class="add">+    parser.add_argument(&quot;--use-cpu&quot;, action=&quot;store_true&quot;, help=&quot;Force training on CPU&quot;)</span>
+<span class="ctx">     parser.add_argument(</span>
+<span class="ctx">         &quot;--max-steps&quot;,</span>
+<span class="ctx">         type=int,</span></pre></details><details class="file" data-file="a1:tests/test_encoder_deployment.py" open><summary><code>tests/test_encoder_deployment.py</code> <span class="stat"><span class="a">+89</span> <span class="d">−0</span></span></summary><div class="callout"><span class="tag tag-fragile">Fragile</span> <code>vocab_size=300</code> and the pad/bos/eos/cls/sep IDs are hard-coded copies of what <code>save_tiny_roberta</code> happens to produce. A0 reads them from the tokenizer instead, so A0 doesn't break if the helper changes.</div><p class=note>Same train → freeze → serve path, but in a new file with its own temp dir. Checks logits parity (stronger than label parity) via <code>compute_logits</code>, and asserts <code>gpu is None</code> under <code>--use-cpu</code>. Does not go through <code>run.evaluate</code>, so the eval harness itself is not exercised.</p><pre class="diff"><span class="hunk">&#64;&#64; -0,0 +1,89 &#64;&#64;</span>
+<span class="add">+&quot;&quot;&quot;Offline coverage of additional encoders through the existing workflow.&quot;&quot;&quot;</span>
+<span class="add">+</span>
+<span class="add">+import tempfile</span>
+<span class="add">+import unittest</span>
+<span class="add">+from pathlib import Path</span>
+<span class="add">+</span>
+<span class="add">+import numpy as np</span>
+<span class="add">+from fastapi.testclient import TestClient</span>
+<span class="add">+from test_baseline_model import fixture_splits, save_tiny_roberta, write_splits</span>
+<span class="add">+from transformers import ModernBertConfig, ModernBertModel</span>
+<span class="add">+</span>
+<span class="add">+from n24.api.app import create_app</span>
+<span class="add">+from n24.data.prepare_data import prepare</span>
+<span class="add">+from n24.deploy.freeze import freeze_run</span>
+<span class="add">+from n24.eval.run import compute_logits, load_model</span>
+<span class="add">+from n24.train.train_baseline import parse_args, sha256_file, train</span>
+<span class="add">+</span>
+<span class="add">+</span>
+<span class="add">+class ModernBertDeploymentTests(unittest.TestCase):</span>
+<span class="add">+    def test_trained_encoder_evaluates_freezes_and_serves(self) -&gt; None:</span>
+<span class="add">+        with tempfile.TemporaryDirectory() as tmp:</span>
+<span class="add">+            root = Path(tmp)</span>
+<span class="add">+            (root / &quot;news&quot;).mkdir()</span>
+<span class="add">+            write_splits(root / &quot;news&quot;, fixture_splits())</span>
+<span class="add">+            prepare(root / &quot;news&quot;, num_sections=3).save_to_disk(str(root / &quot;prepared&quot;))</span>
+<span class="add">+            model_dir = root / &quot;model&quot;</span>
+<span class="add">+            save_tiny_roberta(</span>
+<span class="add">+                model_dir, [row[&quot;abstract&quot;] for row in fixture_splits()[&quot;train&quot;]]</span>
+<span class="add">+            )</span>
+<span class="add">+            config = ModernBertConfig(</span>
+<span class="add">+                vocab_size=300,</span>
+<span class="add">+                hidden_size=32,</span>
+<span class="add">+                num_hidden_layers=2,</span>
+<span class="add">+                num_attention_heads=2,</span>
+<span class="add">+                intermediate_size=64,</span>
+<span class="add">+                max_position_embeddings=128,</span>
+<span class="add">+                pad_token_id=1,</span>
+<span class="add">+                bos_token_id=0,</span>
+<span class="add">+                eos_token_id=2,</span>
+<span class="add">+                cls_token_id=0,</span>
+<span class="add">+                sep_token_id=2,</span>
+<span class="add">+            )</span>
+<span class="add">+            ModernBertModel(config).save_pretrained(str(model_dir))</span>
+<span class="add">+            run_dir = root / &quot;run&quot;</span>
+<span class="add">+            args = parse_args(</span>
+<span class="add">+                [</span>
+<span class="add">+                    &quot;--data-dir&quot;,</span>
+<span class="add">+                    str(root / &quot;prepared&quot;),</span>
+<span class="add">+                    &quot;--output-dir&quot;,</span>
+<span class="add">+                    str(run_dir),</span>
+<span class="add">+                    &quot;--model&quot;,</span>
+<span class="add">+                    str(model_dir),</span>
+<span class="add">+                    &quot;--batch-size&quot;,</span>
+<span class="add">+                    &quot;4&quot;,</span>
+<span class="add">+                    &quot;--max-steps&quot;,</span>
+<span class="add">+                    &quot;2&quot;,</span>
+<span class="add">+                    &quot;--use-cpu&quot;,</span>
+<span class="add">+                ]</span>
+<span class="add">+            )</span>
+<span class="add">+            metrics = train(args, &quot;abc123&quot;)</span>
+<span class="add">+            self.assertIsNone(metrics.gpu)</span>
+<span class="add">+            self.assertEqual(metrics.args[&quot;use_cpu&quot;], &quot;True&quot;)</span>
+<span class="add">+            abstracts = [&quot;A match report.&quot;, &quot;A book review.&quot;]</span>
+<span class="add">+            tokenizer, model = load_model(run_dir / &quot;best_model&quot;)</span>
+<span class="add">+            logits = compute_logits(tokenizer, model, abstracts, max_length=128)</span>
+<span class="add">+            self.assertEqual(logits.shape, (2, 3))</span>
+<span class="add">+            self.assertTrue(np.isfinite(logits).all())</span>
+<span class="add">+            freeze_run(</span>
+<span class="add">+                run_dir,</span>
+<span class="add">+                sha256_file(run_dir / &quot;best_model/model.safetensors&quot;),</span>
+<span class="add">+                root / &quot;frozen&quot;,</span>
+<span class="add">+            )</span>
+<span class="add">+            client = TestClient(create_app(root / &quot;frozen/run&quot;))</span>
+<span class="add">+            response = client.post(&quot;/predict&quot;, json={&quot;abstracts&quot;: abstracts})</span>
+<span class="add">+            self.assertEqual(response.status_code, 200, response.text)</span>
+<span class="add">+            result = response.json()</span>
+<span class="add">+            self.assertEqual(result[&quot;sections&quot;], [&quot;Books&quot;, &quot;Sports&quot;, &quot;Travel&quot;])</span>
+<span class="add">+            self.assertEqual(len(result[&quot;predictions&quot;]), 2)</span>
+<span class="add">+            np.testing.assert_allclose(</span>
+<span class="add">+                [prediction[&quot;logits&quot;] for prediction in result[&quot;predictions&quot;]], logits</span>
+<span class="add">+            )</span>
+<span class="add">+            self.assertEqual(</span>
+<span class="add">+                [prediction[&quot;section&quot;] for prediction in result[&quot;predictions&quot;]],</span>
+<span class="add">+                [result[&quot;sections&quot;][index] for index in logits.argmax(axis=-1)],</span>
+<span class="add">+            )</span>
+<span class="add">+</span>
+<span class="add">+</span>
+<span class="add">+if __name__ == &quot;__main__&quot;:</span>
+<span class="add">+    unittest.main()</span></pre></details></div></div></section><section><h2>2 · Wiring, docs and agent instructions</h2><p class=blurb>How each branch exposed the change to users and to future agents.</p><div class="cols"><div class="col"><h3>A0 · no skills</h3><details class="file" data-file="a0:AGENTS.md" open><summary><code>AGENTS.md</code> <span class="stat"><span class="a">+3</span> <span class="d">−0</span></span></summary><div class="callout"><span class="tag tag-scope">Scope</span> Three rules about commit identity and history rewrites, unrelated to the encoder task. They came from a push incident during the session, not from the task.</div><pre class="diff"><span class="hunk">&#64;&#64; -4,6 +4,9 &#64;&#64;</span>
+<span class="ctx"> </span>
+<span class="ctx"> - Stage finished changes with `git add`, but do not commit unless the user asks for a commit at that moment. A plan that lists commits is not that request.</span>
+<span class="ctx"> - Do not push. The user pushes.</span>
+<span class="add">+- Before committing, verify `git var GIT_AUTHOR_IDENT` and `git var GIT_COMMITTER_IDENT` both use `REPO_NAME` and `REPO_EMAIL` from `scripts/check_privacy.py` (ADR 0003). Resolve local configuration or environment overrides before creating the commit.</span>
+<span class="add">+- Run push checks from the worktree that has the branch being pushed checked out; hooks use that worktree&#x27;s scripts and files.</span>
+<span class="add">+- Before rewriting commits shared with `main` or another branch, explain which refs and commit SHAs will change, including the resulting ahead/behind counts, and obtain explicit approval for the affected refs. A request to fix a push failure is not approval to rewrite shared ancestors on one branch. Back up approved refs and verify that metadata-only repairs preserve every commit&#x27;s file contents.</span>
+<span class="ctx"> </span>
+<span class="ctx"> ## Baseline branch</span>
+<span class="ctx"> </span></pre></details><details class="file" data-file="a0:README.md" open><summary><code>README.md</code> <span class="stat"><span class="a">+10</span> <span class="d">−1</span></span></summary><p class=note>Documents <code>--model answerdotai/ModernBERT-base</code> and <code>--use-cpu</code> on the existing trainer instead of adding a script. The Modal path fix (<code>/prepared</code> → <code>/data/prepared</code>) is out of task but correct: it matches <code>n24/train/modal_train.py</code>.</p><pre class="diff"><span class="hunk">&#64;&#64; -132,6 +132,14 &#64;&#64; sequence classification. The model input is the abstract alone.</span>
+<span class="ctx"> uv run python -m n24.train.train_baseline --data-dir datasets/prepared --output-dir experiment_runs/roberta-baseline</span>
+<span class="ctx"> ```</span>
+<span class="ctx"> </span>
+<span class="add">+Pass `--model answerdotai/ModernBERT-base` to train ModernBERT through the same</span>
+<span class="add">+trainer. Its saved run uses the existing evaluation and inference API commands,</span>
+<span class="add">+and the deployment image accepts its encoder type. A five-step CPU smoke run:</span>
+<span class="add">+</span>
+<span class="add">+```bash</span>
+<span class="add">+uv run python -m n24.train.train_baseline --model answerdotai/ModernBERT-base --data-dir datasets/prepared --output-dir experiment_runs/modernbert-smoke --max-steps 5 --batch-size 4 --max-length 64 --use-cpu</span>
+<span class="add">+```</span>
+<span class="add">+</span>
+<span class="ctx"> Use a GPU for the full run. How a run works:</span>
+<span class="ctx"> </span>
+<span class="ctx"> 1. It creates the output directory and refuses to continue if it already</span>
+<span class="hunk">&#64;&#64; -157,6 +165,7 &#64;&#64; Use a GPU for the full run. How a run works:</span>
+<span class="ctx"> | `--max-length` | `128` | Tokens kept per abstract |</span>
+<span class="ctx"> | `--seed` | `42` | Random seed |</span>
+<span class="ctx"> | `--max-steps` | `-1` | Stop after N steps for a smoke run |</span>
+<span class="add">+| `--use-cpu` | off | Force training on CPU |</span>
+<span class="ctx"> </span>
+<span class="ctx"> `metrics.json` is the run&#x27;s record. Tracking and the eval harness both read it:</span>
+<span class="ctx"> </span>
+<span class="hunk">&#64;&#64; -200,7 +209,7 &#64;&#64; One-time setup, from the repository root:</span>
+<span class="ctx"> ```bash</span>
+<span class="ctx"> uv run modal setup</span>
+<span class="ctx"> uv run modal volume create n24-data</span>
+<span class="del">-uv run modal volume put n24-data datasets/prepared /prepared</span>
+<span class="add">+uv run modal volume put n24-data datasets/prepared /data/prepared</span>
+<span class="ctx"> ```</span>
+<span class="ctx"> </span>
+<span class="ctx"> A real experiment goes through `bins/train/train_modal.sh`, which trains</span></pre></details></div><div class="col"><h3>A1 · 8 skills</h3><details class="file" data-file="a1:AGENTS.md" open><summary><code>AGENTS.md</code> <span class="stat"><span class="a">+2</span> <span class="d">−0</span></span></summary><div class="callout"><span class="tag tag-scope">Scope</span> New rule: “Before adding a script… extend the existing workflow.” A1 broke this rule in the same commit (see <code>encoder_smoke.sh</code>).</div><pre class="diff"><span class="hunk">&#64;&#64; -25,6 +25,8 &#64;&#64;</span>
+<span class="ctx"> - Write a failing test first, then the code that makes it pass, unless told otherwise. Exception: `tests/test_legacy.py` pins existing legacy behavior, so its tests describe code that already exists.</span>
+<span class="ctx"> - Build the simplest design that fully meets current requirements and will last: no speculative abstractions or configuration, and no stopgaps meant to be replaced.</span>
+<span class="ctx">     - Before adding complexity for an unlikely race or security edge case, explain the failure mode, likelihood, and complexity cost to the user and get their buy-in.</span>
+<span class="add">+- Before adding a script, command, or workflow, inspect existing entry points, their callers, options, and side effects. Extend the existing workflow when the purpose is the same. Smoke/full runs, CPU/GPU selection, artifact downloads, and staging are usually options on that workflow.</span>
+<span class="add">+- Add a new entry point only for a distinct responsibility; explain why the existing entry point cannot reasonably support it. Keep execution logic in one place and have orchestration call that implementation. Preserve existing defaults when adding options.</span>
+<span class="ctx"> - Inline logic used once; extract a function when it has a second caller or is independently testable.</span>
+<span class="ctx"> - Let exceptions propagate. Catch only a specific exception you can handle at that point.</span>
+<span class="ctx"> - Delete dead code in the code you change. Ask before deleting code outside the task, and never delete legacy code.</span></pre></details></div></div></section><section><h2>3 · Skill-driven scaffolding (A1 only, excluded from the verdict)</h2><p class=blurb>Pilot runner scripts, tests for those scripts, and skill setup docs. They exist because of the skill workflow, not the feature, so they are shown for reference but not scored. A0 has nothing here.</p><div class="cols"><div class="col"><h3>A0 · no skills</h3><p class=empty>Nothing in this section.</p></div><div class="col"><h3>A1 · 8 skills</h3><details class="file" data-file="a1:CLAUDE.md"><summary><code>CLAUDE.md</code> <span class="stat"><span class="a">+5</span> <span class="d">−1</span></span></summary><pre class="diff"><span class="hunk">&#64;&#64; -1 +1,5 &#64;&#64;</span>
+<span class="del">-&#64;AGENTS.md</span>
+<span class="ctx">\ No newline at end of file</span>
+<span class="add">+&#64;AGENTS.md</span>
+<span class="add">+</span>
+<span class="add">+## Agent skills</span>
+<span class="add">+</span>
+<span class="add">+Use local markdown tickets as described in `docs/agents/issue-tracker.md`. Read `docs/agents/domain.md` for the domain documentation.</span></pre></details><details class="file" data-file="a1:bins/experiments/run_a1.sh"><summary><code>bins/experiments/run_a1.sh</code> <span class="stat"><span class="a">+74</span> <span class="d">−0</span></span></summary><p class=note>Experiment harness committed into the product repo. It hard-codes the pilot's step names (1a/1b) and model IDs, and wraps CI + smoke into one gate with evidence logs under <code>.audit/</code>.</p><pre class="diff"><span class="hunk">&#64;&#64; -0,0 +1,74 &#64;&#64;</span>
+<span class="add">+#!/usr/bin/env bash</span>
+<span class="add">+# Enforce the pilot CI gate. --modal selects the billable GPU variant.</span>
+<span class="add">+set -euo pipefail</span>
+<span class="add">+backend=local</span>
+<span class="add">+if [[ &quot;${1:-}&quot; == --modal ]]; then</span>
+<span class="add">+    backend=modal</span>
+<span class="add">+    shift</span>
+<span class="add">+fi</span>
+<span class="add">+usage() {</span>
+<span class="add">+    echo &quot;Usage: bash bins/experiments/run_a1.sh 1a OUTPUT_DIR&quot;</span>
+<span class="add">+    echo &quot;       bash bins/experiments/run_a1.sh 1b OUTPUT_DIR MODERNBERT_RUN&quot;</span>
+<span class="add">+    echo &quot;Modal GPU variant: add --modal; OUTPUT_DIR becomes a fresh remote RUN_NAME.&quot;</span>
+<span class="add">+}</span>
+<span class="add">+if [[ $# -eq 1 &amp;&amp; &quot;$1&quot; == --help ]]; then</span>
+<span class="add">+    usage</span>
+<span class="add">+    exit 0</span>
+<span class="add">+fi</span>
+<span class="add">+if [[ $# -lt 2 ]]; then</span>
+<span class="add">+    usage &gt;&amp;2</span>
+<span class="add">+    exit 2</span>
+<span class="add">+fi</span>
+<span class="add">+case &quot;$1:$#&quot; in</span>
+<span class="add">+    1a:2) model=answerdotai/ModernBERT-base ;;</span>
+<span class="add">+    1b:3) model=dmis-lab/UltraBERT-150M ;;</span>
+<span class="add">+    *) usage &gt;&amp;2; exit 2 ;;</span>
+<span class="add">+esac</span>
+<span class="add">+repo_root=$(git -C &quot;$(dirname &quot;${BASH_SOURCE[0]}&quot;)&quot; rev-parse --show-toplevel)</span>
+<span class="add">+cd &quot;$repo_root&quot;</span>
+<span class="add">+output_dir=&quot;$2&quot;</span>
+<span class="add">+if [[ &quot;$backend&quot; == modal ]]; then</span>
+<span class="add">+    output_dir=&quot;runs_modal/$2&quot;</span>
+<span class="add">+fi</span>
+<span class="add">+if [[ -e &quot;$output_dir&quot; ]]; then</span>
+<span class="add">+    echo &quot;Output already exists: $output_dir. Choose a new run directory.&quot; &gt;&amp;2</span>
+<span class="add">+    exit 1</span>
+<span class="add">+fi</span>
+<span class="add">+mkdir -p .audit</span>
+<span class="add">+evidence=$(mktemp -d &quot;.audit/a1-$1.XXXXXX&quot;)</span>
+<span class="add">+echo &quot;Evidence: $evidence&quot;</span>
+<span class="add">+bash bins/ci_tasks/perform_ci.sh 2&gt;&amp;1 | tee &quot;$evidence/ci-before.log&quot;</span>
+<span class="add">+if [[ &quot;$1&quot; == 1b ]]; then</span>
+<span class="add">+    .venv/bin/python - &quot;$3&quot; &quot;$backend&quot; &lt;&lt;&#x27;PY&#x27;</span>
+<span class="add">+import json</span>
+<span class="add">+import sys</span>
+<span class="add">+from pathlib import Path</span>
+<span class="add">+</span>
+<span class="add">+from n24.deploy.freeze import ENCODER_MODEL_TYPES</span>
+<span class="add">+from n24.train.train_baseline import sha256_file</span>
+<span class="add">+</span>
+<span class="add">+run = Path(sys.argv[1])</span>
+<span class="add">+metrics = json.loads((run / &quot;metrics.json&quot;).read_text())</span>
+<span class="add">+args = metrics[&quot;args&quot;]</span>
+<span class="add">+expected_cpu = sys.argv[2] == &quot;local&quot;</span>
+<span class="add">+if (</span>
+<span class="add">+    args[&quot;model&quot;] != &quot;answerdotai/ModernBERT-base&quot;</span>
+<span class="add">+    or args[&quot;max_steps&quot;] != &quot;5&quot;</span>
+<span class="add">+    or args[&quot;use_cpu&quot;] != str(expected_cpu)</span>
+<span class="add">+    or (metrics[&quot;gpu&quot;] is None) != expected_cpu</span>
+<span class="add">+    or metrics[&quot;log_history&quot;][-1][&quot;step&quot;] != 5</span>
+<span class="add">+    or sha256_file(run / &quot;best_model/model.safetensors&quot;) != metrics[&quot;weights_sha256&quot;]</span>
+<span class="add">+):</span>
+<span class="add">+    raise SystemExit(&quot;Step 1b requires a verified five-step ModernBERT run on the selected backend.&quot;)</span>
+<span class="add">+if &quot;ultrabert&quot; not in ENCODER_MODEL_TYPES:</span>
+<span class="add">+    raise SystemExit(&quot;Step 1b implementation is pending: UltraBERT cannot yet freeze.&quot;)</span>
+<span class="add">+PY</span>
+<span class="add">+    git diff --cached --binary &gt; &quot;$evidence/step1a.patch&quot;</span>
+<span class="add">+fi</span>
+<span class="add">+if [[ &quot;$backend&quot; == modal ]]; then</span>
+<span class="add">+    bash bins/train/encoder_smoke_modal.sh &quot;$model&quot; &quot;$2&quot; 2&gt;&amp;1 | tee &quot;$evidence/smoke.log&quot;</span>
+<span class="add">+else</span>
+<span class="add">+    bash bins/train/encoder_smoke.sh &quot;$model&quot; &quot;$2&quot; 2&gt;&amp;1 | tee &quot;$evidence/smoke.log&quot;</span>
+<span class="add">+fi</span>
+<span class="add">+bash bins/ci_tasks/perform_ci.sh 2&gt;&amp;1 | tee &quot;$evidence/ci-after.log&quot;</span>
+<span class="add">+echo &quot;$backend smoke and CI passed. Run: $output_dir. Evidence: $evidence&quot;</span></pre></details><details class="file" data-file="a1:bins/experiments/run_a1_modal.sh"><summary><code>bins/experiments/run_a1_modal.sh</code> <span class="stat"><span class="a">+4</span> <span class="d">−0</span></span></summary><pre class="diff"><span class="hunk">&#64;&#64; -0,0 +1,4 &#64;&#64;</span>
+<span class="add">+#!/usr/bin/env bash</span>
+<span class="add">+# Modal GPU variant of the A1 pilot driver, with the same CI gates.</span>
+<span class="add">+set -euo pipefail</span>
+<span class="add">+exec bash &quot;$(dirname &quot;${BASH_SOURCE[0]}&quot;)/run_a1.sh&quot; --modal &quot;$&#64;&quot;</span></pre></details><details class="file" data-file="a1:bins/train/encoder_smoke.sh"><summary><code>bins/train/encoder_smoke.sh</code> <span class="stat"><span class="a">+25</span> <span class="d">−0</span></span></summary><div class="callout"><span class="tag tag-drift">Drift</span> This duplicates <code>bins/train/smoke_test.sh</code>; adding a <code>--model</code> pass-through there would have done the same job. Rubric trap 2. The same commit adds an AGENTS.md rule against new entry points.</div><pre class="diff"><span class="hunk">&#64;&#64; -0,0 +1,25 &#64;&#64;</span>
+<span class="add">+#!/usr/bin/env bash</span>
+<span class="add">+# Five local CPU training steps. Existing output is never removed.</span>
+<span class="add">+set -euo pipefail</span>
+<span class="add">+if [[ $# -eq 1 &amp;&amp; &quot;$1&quot; == --help ]]; then</span>
+<span class="add">+    echo &quot;Usage: bash bins/train/encoder_smoke.sh MODEL_ID OUTPUT_DIR&quot;</span>
+<span class="add">+    exit 0</span>
+<span class="add">+fi</span>
+<span class="add">+if [[ $# -ne 2 ]]; then</span>
+<span class="add">+    echo &quot;Usage: bash bins/train/encoder_smoke.sh MODEL_ID OUTPUT_DIR&quot; &gt;&amp;2</span>
+<span class="add">+    exit 2</span>
+<span class="add">+fi</span>
+<span class="add">+repo_root=$(git -C &quot;$(dirname &quot;${BASH_SOURCE[0]}&quot;)&quot; rev-parse --show-toplevel)</span>
+<span class="add">+cd &quot;$repo_root&quot;</span>
+<span class="add">+if [[ -e &quot;$2&quot; ]]; then</span>
+<span class="add">+    echo &quot;Output already exists: $2. Choose a new run directory.&quot; &gt;&amp;2</span>
+<span class="add">+    exit 1</span>
+<span class="add">+fi</span>
+<span class="add">+if [[ ! -x .venv/bin/python || ! -d datasets/prepared ]]; then</span>
+<span class="add">+    echo &quot;Prepare datasets/prepared and run: uv sync --locked --group lint&quot; &gt;&amp;2</span>
+<span class="add">+    exit 1</span>
+<span class="add">+fi</span>
+<span class="add">+exec env OMP_NUM_THREADS=&quot;${OMP_NUM_THREADS:-4}&quot; .venv/bin/python \</span>
+<span class="add">+    -m n24.train.train_baseline --model &quot;$1&quot; --output-dir &quot;$2&quot; \</span>
+<span class="add">+    --data-dir datasets/prepared --max-steps 5 --batch-size 2 \</span>
+<span class="add">+    --max-length 128 --seed 42 --use-cpu</span></pre></details><details class="file" data-file="a1:bins/train/encoder_smoke_modal.sh"><summary><code>bins/train/encoder_smoke_modal.sh</code> <span class="stat"><span class="a">+44</span> <span class="d">−0</span></span></summary><p class=note>Validates <code>MODEL_ID</code>/<code>RUN_NAME</code> with regexes before interpolating them into <code>--args</code>, so no shell or argument injection. Security-wise fine; the issue is scope, not safety.</p><pre class="diff"><span class="hunk">&#64;&#64; -0,0 +1,44 &#64;&#64;</span>
+<span class="add">+#!/usr/bin/env bash</span>
+<span class="add">+# Submit five GPU steps to the existing Modal trainer, then retrieve the run.</span>
+<span class="add">+set -euo pipefail</span>
+<span class="add">+usage() {</span>
+<span class="add">+    echo &quot;Usage: bash bins/train/encoder_smoke_modal.sh MODEL_ID RUN_NAME&quot;</span>
+<span class="add">+}</span>
+<span class="add">+if [[ $# -eq 1 &amp;&amp; &quot;$1&quot; == --help ]]; then</span>
+<span class="add">+    usage</span>
+<span class="add">+    exit 0</span>
+<span class="add">+fi</span>
+<span class="add">+if [[ $# -ne 2 ]]; then</span>
+<span class="add">+    usage &gt;&amp;2</span>
+<span class="add">+    exit 2</span>
+<span class="add">+fi</span>
+<span class="add">+if [[ ! &quot;$1&quot; =~ ^[a-zA-Z0-9][a-zA-Z0-9._/-]*$ ]]; then</span>
+<span class="add">+    echo &quot;MODEL_ID must be a single Hugging Face model identifier.&quot; &gt;&amp;2</span>
+<span class="add">+    exit 2</span>
+<span class="add">+fi</span>
+<span class="add">+if [[ ! &quot;$2&quot; =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]*$ ]]; then</span>
+<span class="add">+    echo &quot;RUN_NAME must start with a letter or number and contain only letters, numbers, dots, underscores, or hyphens.&quot; &gt;&amp;2</span>
+<span class="add">+    exit 2</span>
+<span class="add">+fi</span>
+<span class="add">+repo_root=$(git -C &quot;$(dirname &quot;${BASH_SOURCE[0]}&quot;)&quot; rev-parse --show-toplevel)</span>
+<span class="add">+cd &quot;$repo_root&quot;</span>
+<span class="add">+if [[ -e &quot;runs_modal/$2&quot; ]]; then</span>
+<span class="add">+    echo &quot;Output already exists: runs_modal/$2. Choose a new run name.&quot; &gt;&amp;2</span>
+<span class="add">+    exit 1</span>
+<span class="add">+fi</span>
+<span class="add">+if [[ ! -x .venv/bin/python ]]; then</span>
+<span class="add">+    echo &quot;Prepare the environment with: uv sync --locked --group lint&quot; &gt;&amp;2</span>
+<span class="add">+    exit 1</span>
+<span class="add">+fi</span>
+<span class="add">+if ! command -v uv &gt;/dev/null 2&gt;&amp;1; then</span>
+<span class="add">+    echo &quot;Install uv before running this script.&quot; &gt;&amp;2</span>
+<span class="add">+    exit 1</span>
+<span class="add">+fi</span>
+<span class="add">+echo &quot;Submitting five training steps to Modal&#x27;s configured GPU (L4/A10G).&quot;</span>
+<span class="add">+uv run --locked --group lint modal run -m n24.train.modal_train \</span>
+<span class="add">+    --name &quot;$2&quot; \</span>
+<span class="add">+    --args &quot;--model $1 --max-steps 5 --batch-size 2 --max-length 128 --seed 42&quot;</span>
+<span class="add">+mkdir -p runs_modal</span>
+<span class="add">+uv run --locked --group lint modal volume get n24-runs &quot;$2&quot; runs_modal/</span>
+<span class="add">+echo &quot;Downloaded run: runs_modal/$2&quot;</span>
+<span class="add">+.venv/bin/python -m json.tool &quot;runs_modal/$2/metrics.json&quot;</span></pre></details><details class="file" data-file="a1:docs/agents/domain.md"><summary><code>docs/agents/domain.md</code> <span class="stat"><span class="a">+3</span> <span class="d">−0</span></span></summary><pre class="diff"><span class="hunk">&#64;&#64; -0,0 +1,3 &#64;&#64;</span>
+<span class="add">+# Domain docs</span>
+<span class="add">+</span>
+<span class="add">+Read the root `GLOSSARY.md` and relevant `docs/adr/` decisions before implementation. This repository has one domain context.</span></pre></details><details class="file" data-file="a1:docs/agents/issue-tracker.md"><summary><code>docs/agents/issue-tracker.md</code> <span class="stat"><span class="a">+4</span> <span class="d">−0</span></span></summary><pre class="diff"><span class="hunk">&#64;&#64; -0,0 +1,4 &#64;&#64;</span>
+<span class="add">+# Issue tracker: Local Markdown</span>
+<span class="add">+</span>
+<span class="add">+Specs live in `.scratch/&lt;feature&gt;/spec.md`. Tickets live in `.scratch/&lt;feature&gt;/issues/NN-slug.md`.</span>
+<span class="add">+Use `Status: ready-for-agent`, `Status: claimed`, and `Status: resolved`. Resolve only after acceptance checks pass.</span></pre></details><details class="file" data-file="a1:tests/test_a1_modal_runfiles.py"><summary><code>tests/test_a1_modal_runfiles.py</code> <span class="stat"><span class="a">+149</span> <span class="d">−0</span></span></summary><p class=note>Same pattern for the Modal variants: 149 lines that test argument forwarding of throwaway scripts.</p><pre class="diff"><span class="hunk">&#64;&#64; -0,0 +1,149 &#64;&#64;</span>
+<span class="add">+&quot;&quot;&quot;Modal run-file contracts with a fake CLI; no network or paid jobs.&quot;&quot;&quot;</span>
+<span class="add">+</span>
+<span class="add">+import json</span>
+<span class="add">+import os</span>
+<span class="add">+import shutil</span>
+<span class="add">+import subprocess</span>
+<span class="add">+import sys</span>
+<span class="add">+import tempfile</span>
+<span class="add">+import unittest</span>
+<span class="add">+from pathlib import Path</span>
+<span class="add">+</span>
+<span class="add">+ROOT = Path(__file__).resolve().parents[1]</span>
+<span class="add">+</span>
+<span class="add">+</span>
+<span class="add">+class ModalRunFileTests(unittest.TestCase):</span>
+<span class="add">+    def setUp(self) -&gt; None:</span>
+<span class="add">+        temporary = tempfile.TemporaryDirectory()</span>
+<span class="add">+        self.addCleanup(temporary.cleanup)</span>
+<span class="add">+        self.root = Path(temporary.name)</span>
+<span class="add">+        subprocess.run([&quot;git&quot;, &quot;init&quot;, &quot;-q&quot;, str(self.root)], check=True)</span>
+<span class="add">+        for folder in (</span>
+<span class="add">+            &quot;bins/train&quot;,</span>
+<span class="add">+            &quot;bins/experiments&quot;,</span>
+<span class="add">+            &quot;bins/ci_tasks&quot;,</span>
+<span class="add">+            &quot;.venv/bin&quot;,</span>
+<span class="add">+            &quot;fake-bin&quot;,</span>
+<span class="add">+        ):</span>
+<span class="add">+            (self.root / folder).mkdir(parents=True)</span>
+<span class="add">+        for relative in (</span>
+<span class="add">+            &quot;bins/train/encoder_smoke_modal.sh&quot;,</span>
+<span class="add">+            &quot;bins/experiments/run_a1.sh&quot;,</span>
+<span class="add">+            &quot;bins/experiments/run_a1_modal.sh&quot;,</span>
+<span class="add">+        ):</span>
+<span class="add">+            shutil.copy2(ROOT / relative, self.root / relative)</span>
+<span class="add">+        (self.root / &quot;.venv/bin/python&quot;).symlink_to(sys.executable)</span>
+<span class="add">+        self.capture = self.root / &quot;commands.jsonl&quot;</span>
+<span class="add">+        fake = self.root / &quot;fake-bin/uv&quot;</span>
+<span class="add">+        fake.write_text(</span>
+<span class="add">+            f&quot;#!{sys.executable}\n&quot;</span>
+<span class="add">+            + &quot;&quot;&quot;</span>
+<span class="add">+import json</span>
+<span class="add">+import os</span>
+<span class="add">+import sys</span>
+<span class="add">+from pathlib import Path</span>
+<span class="add">+</span>
+<span class="add">+args = sys.argv[1:]</span>
+<span class="add">+with open(os.environ[&quot;A1_TEST_COMMAND_LOG&quot;], &quot;a&quot;) as stream:</span>
+<span class="add">+    stream.write(json.dumps(args) + &quot;\\n&quot;)</span>
+<span class="add">+if &quot;modal&quot; in args and &quot;--name&quot; in args and os.environ.get(&quot;A1_TEST_MODAL_FAIL&quot;):</span>
+<span class="add">+    raise SystemExit(17)</span>
+<span class="add">+if &quot;volume&quot; in args and &quot;get&quot; in args:</span>
+<span class="add">+    target = Path(args[-1]) / args[-2]</span>
+<span class="add">+    target.mkdir(parents=True)</span>
+<span class="add">+    (target / &quot;metrics.json&quot;).write_text(json.dumps({&quot;remote&quot;: True}))</span>
+<span class="add">+&quot;&quot;&quot;</span>
+<span class="add">+        )</span>
+<span class="add">+        fake.chmod(0o755)</span>
+<span class="add">+</span>
+<span class="add">+    def run_script(</span>
+<span class="add">+        self, relative: str, *args: str, fail: bool = False</span>
+<span class="add">+    ) -&gt; subprocess.CompletedProcess[str]:</span>
+<span class="add">+        return subprocess.run(</span>
+<span class="add">+            [&quot;bash&quot;, str(self.root / relative), *args],</span>
+<span class="add">+            cwd=self.root,</span>
+<span class="add">+            env={</span>
+<span class="add">+                **os.environ,</span>
+<span class="add">+                &quot;PATH&quot;: str(self.root / &quot;fake-bin&quot;) + os.pathsep + os.environ[&quot;PATH&quot;],</span>
+<span class="add">+                &quot;A1_TEST_COMMAND_LOG&quot;: str(self.capture),</span>
+<span class="add">+                &quot;A1_TEST_MODAL_FAIL&quot;: &quot;1&quot; if fail else &quot;&quot;,</span>
+<span class="add">+            },</span>
+<span class="add">+            capture_output=True,</span>
+<span class="add">+            text=True,</span>
+<span class="add">+        )</span>
+<span class="add">+</span>
+<span class="add">+    def commands(self) -&gt; list[list[str]]:</span>
+<span class="add">+        return [json.loads(line) for line in self.capture.read_text().splitlines()]</span>
+<span class="add">+</span>
+<span class="add">+    def test_modal_smoke_submits_five_gpu_steps_and_prints_downloaded_metrics(</span>
+<span class="add">+        self,</span>
+<span class="add">+    ) -&gt; None:</span>
+<span class="add">+        result = self.run_script(</span>
+<span class="add">+            &quot;bins/train/encoder_smoke_modal.sh&quot;,</span>
+<span class="add">+            &quot;answerdotai/ModernBERT-base&quot;,</span>
+<span class="add">+            &quot;a1-modal-test&quot;,</span>
+<span class="add">+        )</span>
+<span class="add">+        self.assertEqual(result.returncode, 0, result.stderr)</span>
+<span class="add">+        commands = self.commands()</span>
+<span class="add">+        self.assertEqual(len(commands), 2)</span>
+<span class="add">+        submitted = commands[0]</span>
+<span class="add">+        self.assertIn(&quot;n24.train.modal_train&quot;, submitted)</span>
+<span class="add">+        flags = submitted[submitted.index(&quot;--args&quot;) + 1].split()</span>
+<span class="add">+        self.assertEqual(</span>
+<span class="add">+            flags[flags.index(&quot;--model&quot;) + 1], &quot;answerdotai/ModernBERT-base&quot;</span>
+<span class="add">+        )</span>
+<span class="add">+        self.assertEqual(flags[flags.index(&quot;--max-steps&quot;) + 1], &quot;5&quot;)</span>
+<span class="add">+        self.assertNotIn(&quot;--use-cpu&quot;, flags)</span>
+<span class="add">+        self.assertIn(&quot;n24-runs&quot;, commands[1])</span>
+<span class="add">+        self.assertTrue((self.root / &quot;runs_modal/a1-modal-test/metrics.json&quot;).exists())</span>
+<span class="add">+        self.assertIn(&#x27;&quot;remote&quot;: true&#x27;, result.stdout)</span>
+<span class="add">+</span>
+<span class="add">+    def test_model_argument_cannot_inject_extra_remote_flags(self) -&gt; None:</span>
+<span class="add">+        result = self.run_script(</span>
+<span class="add">+            &quot;bins/train/encoder_smoke_modal.sh&quot;, &quot;a/model --use-cpu&quot;, &quot;unsafe-model&quot;</span>
+<span class="add">+        )</span>
+<span class="add">+        self.assertNotEqual(result.returncode, 0)</span>
+<span class="add">+        self.assertFalse(self.capture.exists())</span>
+<span class="add">+</span>
+<span class="add">+    def test_successful_ci_routes_experiment_to_modal_and_downloads(self) -&gt; None:</span>
+<span class="add">+        (self.root / &quot;bins/ci_tasks/perform_ci.sh&quot;).write_text(&quot;#!/bin/bash\nexit 0\n&quot;)</span>
+<span class="add">+        result = self.run_script(</span>
+<span class="add">+            &quot;bins/experiments/run_a1_modal.sh&quot;, &quot;1a&quot;, &quot;a1-modal-gated&quot;</span>
+<span class="add">+        )</span>
+<span class="add">+        self.assertEqual(result.returncode, 0, result.stderr)</span>
+<span class="add">+        self.assertEqual(len(self.commands()), 2)</span>
+<span class="add">+        self.assertTrue((self.root / &quot;runs_modal/a1-modal-gated/metrics.json&quot;).exists())</span>
+<span class="add">+</span>
+<span class="add">+    def test_remote_failure_stops_before_download(self) -&gt; None:</span>
+<span class="add">+        result = self.run_script(</span>
+<span class="add">+            &quot;bins/train/encoder_smoke_modal.sh&quot;, &quot;a/model&quot;, &quot;a1-modal-fail&quot;, fail=True</span>
+<span class="add">+        )</span>
+<span class="add">+        self.assertEqual(result.returncode, 17, result.stderr)</span>
+<span class="add">+        self.assertEqual(len(self.commands()), 1)</span>
+<span class="add">+</span>
+<span class="add">+    def test_existing_local_run_is_preserved_without_submission(self) -&gt; None:</span>
+<span class="add">+        (self.root / &quot;runs_modal/existing&quot;).mkdir(parents=True)</span>
+<span class="add">+        result = self.run_script(</span>
+<span class="add">+            &quot;bins/train/encoder_smoke_modal.sh&quot;, &quot;a/model&quot;, &quot;existing&quot;</span>
+<span class="add">+        )</span>
+<span class="add">+        self.assertNotEqual(result.returncode, 0)</span>
+<span class="add">+        self.assertFalse(self.capture.exists())</span>
+<span class="add">+</span>
+<span class="add">+    def test_invalid_run_name_is_rejected_before_submission(self) -&gt; None:</span>
+<span class="add">+        result = self.run_script(</span>
+<span class="add">+            &quot;bins/train/encoder_smoke_modal.sh&quot;, &quot;a/model&quot;, &quot;../escape&quot;</span>
+<span class="add">+        )</span>
+<span class="add">+        self.assertNotEqual(result.returncode, 0)</span>
+<span class="add">+        self.assertFalse(self.capture.exists())</span>
+<span class="add">+</span>
+<span class="add">+    def test_modal_experiment_respects_failed_ci_before_submission(self) -&gt; None:</span>
+<span class="add">+        (self.root / &quot;bins/ci_tasks/perform_ci.sh&quot;).write_text(&quot;#!/bin/bash\nexit 23\n&quot;)</span>
+<span class="add">+        result = self.run_script(</span>
+<span class="add">+            &quot;bins/experiments/run_a1_modal.sh&quot;, &quot;1a&quot;, &quot;a1-modal-blocked&quot;</span>
+<span class="add">+        )</span>
+<span class="add">+        self.assertEqual(result.returncode, 23, result.stderr)</span>
+<span class="add">+        self.assertFalse(self.capture.exists())</span>
+<span class="add">+</span>
+<span class="add">+</span>
+<span class="add">+if __name__ == &quot;__main__&quot;:</span>
+<span class="add">+    unittest.main()</span></pre></details><details class="file" data-file="a1:tests/test_a1_runfiles.py"><summary><code>tests/test_a1_runfiles.py</code> <span class="stat"><span class="a">+79</span> <span class="d">−0</span></span></summary><p class=note>Tests the experiment shell scripts with a fake <code>.venv/bin/python</code>. Well built, but it locks experiment scaffolding into CI permanently.</p><pre class="diff"><span class="hunk">&#64;&#64; -0,0 +1,79 &#64;&#64;</span>
+<span class="add">+&quot;&quot;&quot;Run-file contracts checked without downloading or training a model.&quot;&quot;&quot;</span>
+<span class="add">+</span>
+<span class="add">+import shutil</span>
+<span class="add">+import subprocess</span>
+<span class="add">+import tempfile</span>
+<span class="add">+import unittest</span>
+<span class="add">+from pathlib import Path</span>
+<span class="add">+</span>
+<span class="add">+ROOT = Path(__file__).resolve().parents[1]</span>
+<span class="add">+</span>
+<span class="add">+</span>
+<span class="add">+class A1RunFileTests(unittest.TestCase):</span>
+<span class="add">+    def setUp(self) -&gt; None:</span>
+<span class="add">+        temporary = tempfile.TemporaryDirectory()</span>
+<span class="add">+        self.addCleanup(temporary.cleanup)</span>
+<span class="add">+        self.root = Path(temporary.name)</span>
+<span class="add">+        subprocess.run([&quot;git&quot;, &quot;init&quot;, &quot;-q&quot;, str(self.root)], check=True)</span>
+<span class="add">+        for folder in (</span>
+<span class="add">+            &quot;bins/train&quot;,</span>
+<span class="add">+            &quot;bins/experiments&quot;,</span>
+<span class="add">+            &quot;bins/ci_tasks&quot;,</span>
+<span class="add">+            &quot;.venv/bin&quot;,</span>
+<span class="add">+            &quot;datasets/prepared&quot;,</span>
+<span class="add">+        ):</span>
+<span class="add">+            (self.root / folder).mkdir(parents=True)</span>
+<span class="add">+        for relative in (&quot;bins/train/encoder_smoke.sh&quot;, &quot;bins/experiments/run_a1.sh&quot;):</span>
+<span class="add">+            shutil.copy2(ROOT / relative, self.root / relative)</span>
+<span class="add">+        python = self.root / &quot;.venv/bin/python&quot;</span>
+<span class="add">+        python.write_text(&#x27;#!/bin/bash\nprintf &quot;%s\\n&quot; &quot;$&#64;&quot;\n&#x27;)</span>
+<span class="add">+        python.chmod(0o755)</span>
+<span class="add">+</span>
+<span class="add">+    def run_script(self, relative: str, *args: str) -&gt; subprocess.CompletedProcess[str]:</span>
+<span class="add">+        return subprocess.run(</span>
+<span class="add">+            [&quot;bash&quot;, str(self.root / relative), *args],</span>
+<span class="add">+            cwd=self.root,</span>
+<span class="add">+            capture_output=True,</span>
+<span class="add">+            text=True,</span>
+<span class="add">+        )</span>
+<span class="add">+</span>
+<span class="add">+    def test_smoke_uses_five_cpu_steps_and_the_requested_model(self) -&gt; None:</span>
+<span class="add">+        result = self.run_script(</span>
+<span class="add">+            &quot;bins/train/encoder_smoke.sh&quot;,</span>
+<span class="add">+            &quot;answerdotai/ModernBERT-base&quot;,</span>
+<span class="add">+            &quot;experiment_runs/new-smoke&quot;,</span>
+<span class="add">+        )</span>
+<span class="add">+        self.assertEqual(result.returncode, 0, result.stderr)</span>
+<span class="add">+        args = result.stdout.splitlines()</span>
+<span class="add">+        self.assertEqual(args[args.index(&quot;--model&quot;) + 1], &quot;answerdotai/ModernBERT-base&quot;)</span>
+<span class="add">+        self.assertEqual(args[args.index(&quot;--max-steps&quot;) + 1], &quot;5&quot;)</span>
+<span class="add">+        self.assertEqual(args[args.index(&quot;--batch-size&quot;) + 1], &quot;2&quot;)</span>
+<span class="add">+        self.assertIn(&quot;--use-cpu&quot;, args)</span>
+<span class="add">+</span>
+<span class="add">+    def test_smoke_refuses_an_existing_run(self) -&gt; None:</span>
+<span class="add">+        (self.root / &quot;experiment_runs/existing&quot;).mkdir(parents=True)</span>
+<span class="add">+        result = self.run_script(</span>
+<span class="add">+            &quot;bins/train/encoder_smoke.sh&quot;, &quot;a/model&quot;, &quot;experiment_runs/existing&quot;</span>
+<span class="add">+        )</span>
+<span class="add">+        self.assertNotEqual(result.returncode, 0)</span>
+<span class="add">+        self.assertIn(&quot;already exists&quot;, result.stderr)</span>
+<span class="add">+        self.assertTrue((self.root / &quot;experiment_runs/existing&quot;).exists())</span>
+<span class="add">+</span>
+<span class="add">+    def test_failed_ci_stops_experiment_before_training(self) -&gt; None:</span>
+<span class="add">+        (self.root / &quot;bins/ci_tasks/perform_ci.sh&quot;).write_text(&quot;#!/bin/bash\nexit 23\n&quot;)</span>
+<span class="add">+        result = self.run_script(</span>
+<span class="add">+            &quot;bins/experiments/run_a1.sh&quot;, &quot;1a&quot;, &quot;experiment_runs/new-smoke&quot;</span>
+<span class="add">+        )</span>
+<span class="add">+        self.assertEqual(result.returncode, 23, result.stderr)</span>
+<span class="add">+        self.assertNotIn(&quot;--max-steps&quot;, result.stdout)</span>
+<span class="add">+</span>
+<span class="add">+    def test_ultrabert_requires_the_modernbert_run_argument(self) -&gt; None:</span>
+<span class="add">+        result = self.run_script(</span>
+<span class="add">+            &quot;bins/experiments/run_a1.sh&quot;, &quot;1b&quot;, &quot;experiment_runs/ultrabert&quot;</span>
+<span class="add">+        )</span>
+<span class="add">+        self.assertNotEqual(result.returncode, 0)</span>
+<span class="add">+        self.assertIn(&quot;MODERNBERT_RUN&quot;, result.stderr)</span>
+<span class="add">+</span>
+<span class="add">+</span>
+<span class="add">+if __name__ == &quot;__main__&quot;:</span>
+<span class="add">+    unittest.main()</span></pre></details></div></div></section><section><h2>4 · Artifacts and skill copies (excluded)</h2><p class=blurb>Metrics JSON, plans, runbooks, copied skills, local tickets. No code to review.</p><div class="cols"><div class="col"><h3>A0 · no skills</h3><details><summary>4 files</summary><ul class=files><li data-file="a0:metrics/modernbert-epoch3-seed42.json"><code>metrics/modernbert-epoch3-seed42.json</code> <span class="a">+728</span> <span class="d">−0</span></li><li data-file="a0:metrics/ultrabert-epoch3-seed42.json"><code>metrics/ultrabert-epoch3-seed42.json</code> <span class="a">+728</span> <span class="d">−0</span></li><li data-file="a0:plans/Skill-Based SDLC Brownfield Experiment Plan.md"><code>plans/Skill-Based SDLC Brownfield Experiment Plan.md</code> <span class="a">+29</span> <span class="d">−83</span></li><li data-file="a0:plans/Skill-Based SDLC Brownfield Pilot.md"><code>plans/Skill-Based SDLC Brownfield Pilot.md</code> <span class="a">+91</span> <span class="d">−0</span></li></ul></details></div><div class="col"><h3>A1 · 8 skills</h3><details><summary>25 files</summary><ul class=files><li data-file="a1:.agents/skills/blast-radius/SKILL.md"><code>.agents/skills/blast-radius/SKILL.md</code> <span class="a">+50</span> <span class="d">−0</span></li><li data-file="a1:.agents/skills/code-review/SKILL.md"><code>.agents/skills/code-review/SKILL.md</code> <span class="a">+89</span> <span class="d">−0</span></li><li data-file="a1:.agents/skills/code-review/agents/openai.yaml"><code>.agents/skills/code-review/agents/openai.yaml</code> <span class="a">+3</span> <span class="d">−0</span></li><li data-file="a1:.agents/skills/deslop/SKILL.md"><code>.agents/skills/deslop/SKILL.md</code> <span class="a">+22</span> <span class="d">−0</span></li><li data-file="a1:.agents/skills/implement-spec/SKILL.md"><code>.agents/skills/implement-spec/SKILL.md</code> <span class="a">+40</span> <span class="d">−0</span></li><li data-file="a1:.agents/skills/implement-spec/agents/openai.yaml"><code>.agents/skills/implement-spec/agents/openai.yaml</code> <span class="a">+5</span> <span class="d">−0</span></li><li data-file="a1:.agents/skills/principle-prove-it-works/SKILL.md"><code>.agents/skills/principle-prove-it-works/SKILL.md</code> <span class="a">+22</span> <span class="d">−0</span></li><li data-file="a1:.agents/skills/principle-subtract-before-you-add/SKILL.md"><code>.agents/skills/principle-subtract-before-you-add/SKILL.md</code> <span class="a">+18</span> <span class="d">−0</span></li><li data-file="a1:.agents/skills/tdd/SKILL.md"><code>.agents/skills/tdd/SKILL.md</code> <span class="a">+38</span> <span class="d">−0</span></li><li data-file="a1:.agents/skills/tdd/agents/openai.yaml"><code>.agents/skills/tdd/agents/openai.yaml</code> <span class="a">+3</span> <span class="d">−0</span></li><li data-file="a1:.agents/skills/tdd/mocking.md"><code>.agents/skills/tdd/mocking.md</code> <span class="a">+59</span> <span class="d">−0</span></li><li data-file="a1:.agents/skills/tdd/tests.md"><code>.agents/skills/tdd/tests.md</code> <span class="a">+77</span> <span class="d">−0</span></li><li data-file="a1:.agents/skills/to-spec/SKILL.md"><code>.agents/skills/to-spec/SKILL.md</code> <span class="a">+75</span> <span class="d">−0</span></li><li data-file="a1:.agents/skills/to-spec/agents/openai.yaml"><code>.agents/skills/to-spec/agents/openai.yaml</code> <span class="a">+5</span> <span class="d">−0</span></li><li data-file="a1:.scratch/a1-encoders/issues/01-modernbert.md"><code>.scratch/a1-encoders/issues/01-modernbert.md</code> <span class="a">+12</span> <span class="d">−0</span></li><li data-file="a1:.scratch/a1-encoders/issues/02-ultrabert.md"><code>.scratch/a1-encoders/issues/02-ultrabert.md</code> <span class="a">+9</span> <span class="d">−0</span></li><li data-file="a1:.scratch/a1-encoders/spec.md"><code>.scratch/a1-encoders/spec.md</code> <span class="a">+25</span> <span class="d">−0</span></li><li data-file="a1:metrics/a1-modernbert-nov1.json"><code>metrics/a1-modernbert-nov1.json</code> <span class="a">+728</span> <span class="d">−0</span></li><li data-file="a1:metrics/a1-ultrabert-nov1.json"><code>metrics/a1-ultrabert-nov1.json</code> <span class="a">+728</span> <span class="d">−0</span></li><li data-file="a1:plans/A1_MODAL_RUNBOOK.md"><code>plans/A1_MODAL_RUNBOOK.md</code> <span class="a">+60</span> <span class="d">−0</span></li><li data-file="a1:plans/A1_RUNBOOK.md"><code>plans/A1_RUNBOOK.md</code> <span class="a">+44</span> <span class="d">−0</span></li><li data-file="a1:plans/A1_SKILLS_USED.md"><code>plans/A1_SKILLS_USED.md</code> <span class="a">+32</span> <span class="d">−0</span></li><li data-file="a1:plans/a1-prompts/00-probe.txt"><code>plans/a1-prompts/00-probe.txt</code> <span class="a">+1</span> <span class="d">−0</span></li><li data-file="a1:plans/a1-prompts/01-modernbert.txt"><code>plans/a1-prompts/01-modernbert.txt</code> <span class="a">+1</span> <span class="d">−0</span></li><li data-file="a1:plans/a1-prompts/02-ultrabert.txt"><code>plans/a1-prompts/02-ultrabert.txt</code> <span class="a">+1</span> <span class="d">−0</span></li></ul></details></div></div></section>
+</main></body></html>

@@ -143,6 +143,14 @@ def make_tiny_run(root: Path) -> tuple[Path, Path]:
 
 
 class TrainBaselineTests(unittest.TestCase):
+    def test_cpu_training_is_opt_in(self):
+        default = train_baseline.parse_args(["--output-dir", "experiment_runs/default"])
+        cpu = train_baseline.parse_args(
+            ["--output-dir", "experiment_runs/cpu", "--use-cpu"]
+        )
+        self.assertFalse(default.use_cpu)
+        self.assertTrue(cpu.use_cpu)
+
     def test_metrics_match_scikit_learn(self):
         import numpy as np
         from sklearn.metrics import accuracy_score, f1_score

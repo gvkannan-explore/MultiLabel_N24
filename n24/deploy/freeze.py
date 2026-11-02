@@ -20,7 +20,9 @@ ENCODER_MODEL_TYPES = frozenset(
         "deberta-v2",
         "distilbert",
         "electra",
+        "modernbert",
         "roberta",
+        "ultrabert",
         "xlm-roberta",
     }
 )

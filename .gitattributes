@@ -4,3 +4,5 @@ metrics/*.json linguist-generated=true
 # The eval harness and zero-shot scoring write these; their predictions list
 # passes the limit too.
 results/**/*.json linguist-generated=true
+# Review pages are generated from git diffs and inline every diff line.
+docs/reviews/*.html linguist-generated=true

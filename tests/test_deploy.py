@@ -11,11 +11,17 @@ import unittest
 from pathlib import Path
 
 from fastapi.testclient import TestClient
-from test_baseline_model import make_tiny_run
+from test_baseline_model import (
+    fixture_splits,
+    make_tiny_run,
+    save_tiny_roberta,
+    write_splits,
+)
 
 from n24.api.app import create_app
 from n24.deploy.freeze import freeze_run
-from n24.train.train_baseline import sha256_file
+from n24.eval import run
+from n24.train.train_baseline import parse_args, sha256_file, train
 
 
 class FreezeRunTests(unittest.TestCase):
@@ -67,6 +73,70 @@ class FreezeRunTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "qwen3"):
             freeze_run(self.run_dir, self.weights, self.dest)
         self.assertFalse(self.dest.exists())
+
+    def test_accepts_an_ultrabert_checkpoint(self):
+        # dmis-lab/UltraBERT-150M saves model_type "ultrabert".
+        config_path = self.run_dir / "best_model" / "config.json"
+        config = json.loads(config_path.read_text())
+        config["model_type"] = "ultrabert"
+        config_path.write_text(json.dumps(config))
+        freeze_run(self.run_dir, self.weights, self.dest)
+        self.assertTrue((self.dest / "tiny-run" / "best_model").is_dir())
+
+    def test_modernbert_trains_evaluates_and_serves_from_frozen_copy(self):
+        from transformers import AutoTokenizer, ModernBertConfig, ModernBertModel
+
+        from n24.data.prepare_data import prepare
+
+        news = self.root / "news"
+        news.mkdir()
+        write_splits(news, fixture_splits())
+        data_dir = self.root / "prepared"
+        prepare(news, num_sections=3).save_to_disk(str(data_dir))
+        model_dir = self.root / "modernbert"
+        save_tiny_roberta(
+            model_dir, [record["abstract"] for record in fixture_splits()["train"]]
+        )
+        tokenizer = AutoTokenizer.from_pretrained(str(model_dir))
+        ModernBertModel(
+            ModernBertConfig(
+                vocab_size=len(tokenizer),
+                hidden_size=32,
+                num_hidden_layers=2,
+                num_attention_heads=2,
+                intermediate_size=64,
+                max_position_embeddings=128,
+                pad_token_id=tokenizer.pad_token_id,
+                bos_token_id=tokenizer.bos_token_id,
+                eos_token_id=tokenizer.eos_token_id,
+            )
+        ).save_pretrained(str(model_dir))
+        run_dir = self.root / "modernbert-run"
+        args = parse_args([
+            "--model", str(model_dir),
+            "--data-dir", str(data_dir),
+            "--output-dir", str(run_dir),
+            "--batch-size", "4",
+            "--max-steps", "2",
+            "--use-cpu",
+        ])  # fmt: skip
+        metrics = train(args, "abc123")
+        results = run.evaluate(run_dir, data_dir, self.root / "results")
+        freeze_run(run_dir, metrics.weights_sha256, self.dest)
+        shutil.rmtree(run_dir)
+        client = TestClient(create_app(self.dest / "modernbert-run"))
+        response = client.post(
+            "/predict",
+            json={
+                "abstracts": [record["abstract"] for record in fixture_splits()["test"]]
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertEqual(
+            [body["sections"].index(item["section"]) for item in body["predictions"]],
+            results.predictions,
+        )
 
 
 if __name__ == "__main__":
