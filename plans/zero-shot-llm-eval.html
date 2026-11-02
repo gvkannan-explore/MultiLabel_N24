@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Zero-Shot LLM Plan</title>
+<link rel="stylesheet" href="htmlplan.css">
+<script src="htmlplan.js" defer></script>
+<body>
+
+<header>
+  <h1>Zero-Shot LLM Scoring with vLLM</h1>
+  <doc-changes new="2" changed="4"></doc-changes>
+  <details class="thread"><summary>Why · 2 requests</summary>
+    <doc-quote via="prompt" from="the user">Create a plan to evaluate a simple LLM (say &lt;1B but comparable to RoBERta, ModernBERT and UltraBERT) using VLLM.</doc-quote>
+    <doc-quote via="prompt" from="the user">To clarify what we're trying to do is to just compare the out of zero shot classification performance of these LLMs without any training.</doc-quote>
+  </details>
+</header>
+
+<main>
+<doc-plan>
+
+<!-- ═════ 1 ═════ -->
+<doc-claim>
+  <p>A user can score an LLM zero-shot on the test split with one command.</p>
+  <doc-mock frame="terminal" title="baseline-news24" w="480" caption="vLLM runs on a Modal GPU. The results file is written on the laptop."><template><span class="dim">$</span> uv run modal run -m src.eval.zero_shot \
+    --model Qwen/Qwen3-0.6B
+<span class="dim">Loading Qwen/Qwen3-0.6B @ c1899de on L4</span>
+<span class="dim">Pass 1/2 · test split · 6,0xx abstracts</span>
+<span class="dim">Pass 2/2 · fresh load</span>
+<span class="g">✓</span> Qwen3-0.6B: macro F1 <b>0.xxxx</b>
+  accuracy <b>0.xxxx</b> · <b>0</b> sections differ
+  -> results/zs-Qwen3-0.6B.json</template></doc-mock>
+  <doc-note tone="info"><strong>Two models</strong> Qwen/Qwen3-0.6B, with thinking mode off, and HuggingFaceTB/SmolLM2-360M-Instruct. Neither model is gated, so no Hugging Face token is necessary.</doc-note>
+
+  <doc-claim>
+    <p>The prompt gives the 24 sections and the abstract, and asks for one section.</p>
+    <doc-code title="src/eval/zero_shot.py · sketch" lang="py">
+<script type="text/plain">
+SYSTEM = (
+    "You classify news articles into exactly one section. "
+    "Answer with the section name only."
+)
+
+
+def build_messages(abstract: str, sections: list[str]) -> list[dict[str, str]]:
+    """One chat for one article. The model input is the abstract (ADR 0004)."""
+    listing = "\n".join(f"- {section}" for section in sections)
+    return [
+        {"role": "system", "content": SYSTEM},
+        {"role": "user", "content": f"Sections:\n{listing}\n\nAbstract:\n{abstract}"},
+    ]
+</script>
+    </doc-code>
+    <doc-ask id="input">
+      <p>Which part of the article does the LLM read?</p>
+      <label><input type="radio" name="input" value="abstract" checked> The abstract only <small>same model input as the baseline model</small></label>
+      <label><input type="radio" name="input" value="headline-abstract"> The headline and the abstract <small>not comparable to encoder runs</small></label>
+    </doc-ask>
+  </doc-claim>
+
+  <doc-claim>
+    <p>vLLM can only answer with one of the 24 section names.</p>
+    <doc-code title="src/eval/zero_shot.py · sketch" lang="py">
+<script type="text/plain">
+def predict(model: str, revision: str, chats: list[list[dict[str, str]]],
+            sections: list[str]) -> np.ndarray:
+    """Section ids from a fresh vLLM load. Greedy, with the output
+    constrained to the section names, so no answer needs to be parsed."""
+    llm = LLM(model=model, revision=revision, seed=0, max_model_len=1024)
+    params = SamplingParams(
+        temperature=0.0,
+        max_tokens=16,
+        structured_outputs=StructuredOutputsParams(choice=sections),
+    )
+    outputs = llm.chat(chats, params,
+                       chat_template_kwargs={"enable_thinking": False})
+    index = {section: i for i, section in enumerate(sections)}
+    return np.array([index[out.outputs[0].text] for out in outputs])
+</script>
+    </doc-code>
+    <doc-note tone="warn"><strong>Version</strong> The name of the structured output API changed between vLLM releases. Make sure that the sketch agrees with the vLLM version that the lock file pins.</doc-note>
+    <doc-ask id="decode">
+      <p>How does the LLM pick a section?</p>
+      <label><input type="radio" name="decode" value="choice" checked> Constrained greedy choice <small>one generation per article; no per-section scores</small></label>
+      <label><input type="radio" name="decode" value="logprob"> Score all 24 names by log probability <small>24 times the compute; gives scores for each section</small></label>
+    </doc-ask>
+  </doc-claim>
+
+  <doc-claim>
+    <p>A Modal function runs vLLM and gives the predictions to the laptop.</p>
+    <doc-calls title="Zero-shot run" caption="Only the GPU work runs on Modal. The metrics reuse the existing functions.">
+<script type="text/plain">
++ **main**(model, revision)                    @ src/eval/zero_shot.py:1     -- Modal local entrypoint
++   load_from_disk(datasets/prepared)          @ src/eval/zero_shot.py:1     -- test split read on the laptop
++   **score_remote**.remote(model, revision, chats, sections)  @ src/eval/zero_shot.py:1  -- L4 GPU
++     **predict**(...)                         @ src/eval/zero_shot.py:1     -- pass 1, fresh LLM
++     **predict**(...)                         @ src/eval/zero_shot.py:1     -- pass 2, fresh LLM
++   f1_per_section(labels, preds, 24)          @ src/train/train_baseline.py:33
++   dataset_sha256(data_dir / "test")          @ src/train/train_baseline.py:78
++   write results/zs-&lt;model&gt;.json, mode "x"   @ src/eval/run.py:158       -- refuses to overwrite
+</script>
+    </doc-calls>
+    <doc-note tone="info">The test split goes to Modal as a list of chats. The n24-data volume stays as it is.</doc-note>
+  </doc-claim>
+</doc-claim>
+
+<!-- ═════ 2 ═════ -->
+<doc-claim>
+  <p>Zero-shot results use the same ruler as the encoder results.</p>
+  <doc-schema id="results" lang="py" diff title="src/eval/run.py · Results" caption="The common scores move to a base class. A trained run keeps its hashes.">
+<script type="text/plain">
++class TestScores(BaseModel):
++    eval_version: int
++    run: str
++    test_split_sha256: str
++    test_accuracy: float
++    test_f1_macro: float
++    test_f1_per_section: dict[str, float]
++    predictions: list[int]
++
+-class Results(BaseModel):
+-    eval_version: int
+-    run: str
++class Results(TestScores):
+     run_dir: str
+-    test_split_sha256: str
+     git_commit: str | None
+     weights_sha256: Hashes
+     dataset_sha256: Hashes
+     repeatability: Repeatability
+     # … 2 more
++
++class ZeroShotResults(TestScores):
++    model: str              # Hugging Face repo id
++    model_revision: str     # the commit sha that vLLM loaded
++    prompt_sha256: str      # the SYSTEM text and the user template
++    git_commit: str | None
++    label_mismatches: int   # between the two passes
++    vllm_version: str
+</script>
+  </doc-schema>
+
+  <doc-claim>
+    <p>EVAL_VERSION stays 1, because the test split and the metrics do not change.</p>
+    <doc-code src="src/eval/run.py" lines="29-31" hl="30">
+      <doc-pin line="30" tone="info" title="No bump">ADR 0005 asks for a bump only when scores can move.</doc-pin>
+    </doc-code>
+  </doc-claim>
+
+  <doc-claim>
+    <p>Two passes with fresh loads must give the same section for each article.</p>
+    <doc-code title="src/eval/zero_shot.py · sketch" lang="py">
+<script type="text/plain">
+first = score_remote.remote(model, revision, chats, sections)
+second = score_remote.remote(model, revision, chats, sections)
+label_mismatches = int(np.sum(first != second))
+</script>
+    </doc-code>
+    <doc-note tone="warn"><strong>Risk</strong> vLLM on a GPU is not bit-exact across batches. Greedy choices can differ for a small number of articles. The results file records the count. It does not hide it.</doc-note>
+  </doc-claim>
+</doc-claim>
+
+<!-- ═════ shared ═════ -->
+<doc-claim aux="shared">
+  <p>Shared: vLLM installs only in the Modal image.</p>
+  <doc-schema id="deps" lang="toml" diff title="pyproject.toml" caption="vLLM has no macOS wheels, so the group has a Linux marker.">
+<script type="text/plain">
+ [dependency-groups]
++zero-shot = [
++    "vllm>=0.11; sys_platform == 'linux'",
++]
+</script>
+  </doc-schema>
+  <doc-note tone="warn"><strong>Risk</strong> On macOS, pyright cannot resolve <code>import vllm</code>. Keep the import in <code>src/eval/zero_shot.py</code> only, with one <code># pyright: ignore[reportMissingImports]</code>.</doc-note>
+</doc-claim>
+
+<!-- ═════ scope ═════ -->
+<doc-claim aux="scope">
+  <p>Not changing: training, the deployment gate, the inference API.</p>
+  <ul>
+    <li>Two models only: Qwen3-0.6B and SmolLM2-360M-Instruct. No gated models such as Llama.</li>
+    <li>No comparison table. Each results file prints its own scores.</li>
+    <li>No fine-tuning. <code>src/train/</code> does not change.</li>
+    <li><code>src/gate/report.py</code> and <code>gate/criteria.toml</code> do not change.</li>
+    <li>No few-shot prompts and no prompt tuning on the test split.</li>
+    <li>The encoder runs (RoBERTa, ModernBERT) come from the trainer as before. This plan does not train them.</li>
+    <li>CI does not run vLLM. Unit tests use a fake <code>predict</code>; a Modal smoke run with <code>--limit 50</code> tests vLLM.</li>
+  </ul>
+</doc-claim>
+
+</doc-plan>
+</main>
+</body></html>

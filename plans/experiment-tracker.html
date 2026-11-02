@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Experiment Tracker Plan</title>
+<link rel="stylesheet" href="htmlplan.css">
+<script src="htmlplan.js" defer></script>
+<style data-mock-shared>
+  .ui { font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1c1b19; background: #fff; }
+  .ui .hd { padding: 9px 12px; border-bottom: 1px solid #eee9dd; font-weight: 650; }
+  .ui .hd small { color: #8a8578; font-weight: 400; }
+  .ui table { border-collapse: collapse; width: 100%; }
+  .ui th, .ui td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #f3efe6; white-space: nowrap; }
+  .ui th { color: #8a8578; font-weight: 600; font-size: 12px; }
+  .ui .best { color: #1f7a52; font-weight: 650; }
+  .ui .dim { color: #8a8578; }
+</style>
+<body>
+
+<header>
+  <h1>MLflow Experiment Tracking for the Baseline Trainer</h1>
+  <doc-changes new="6" changed="6"></doc-changes>
+  <details class="thread"><summary>Why · 4 requests</summary>
+    <doc-quote via="prompt" from="the user">Let's create a plan for an experiment tracker - I have worked with Weights and Biases but should we try Mlflow? let's keep it as asimple as possible here and I don't want to spend any money.</doc-quote>
+    <doc-quote via="prompt" from="the user">So if someone were to review my GitHub repo, they won't be able to look at my metrics, right?</doc-quote>
+    <doc-quote via="prompt" from="the user">I agree with point 2 since the reviews will get an HTML artifact at the end of it.</doc-quote>
+    <doc-quote via="prompt" from="the user">For question 5, let's create a runfile for the uv run so that every-experiment automatically saves it to git.</doc-quote>
+  </details>
+</header>
+
+<main>
+<doc-plan>
+
+<!-- ═════ 1 ═════ -->
+<doc-claim>
+  <p>Each training run becomes one MLflow run on the laptop.</p>
+  <doc-mock frame="browser" url="localhost:5000 · baseline-model" w="480" caption="One row for each imported metrics.json, with the best epoch's dev scores."><template>
+<div class="ui">
+  <div class="hd">baseline-model <small>· 2 runs</small></div>
+  <table>
+    <tr><th>Run name</th><th>dev_f1_macro</th><th>dev_accuracy</th><th data-ref="tags">git_commit</th></tr>
+    <tr><td>roberta-lr3e-5</td><td class="best">0.712</td><td>0.741</td><td class="dim">caf87bb</td></tr>
+    <tr><td>roberta-baseline</td><td>0.698</td><td>0.733</td><td class="dim">caf87bb</td></tr>
+  </table>
+</div></template>
+    <doc-pin ref="tags" anchor="tr" title="Tags from metrics.json">The commit and the hashes stay with the run.</doc-pin>
+  </doc-mock>
+  <doc-ask id="tracker">
+    <p>Which tracker do we use?</p>
+    <label><input type="radio" name="tracker" value="mlflow" checked> MLflow, self-hosted <small>no account, no cost, data stays local</small></label>
+    <label><input type="radio" name="tracker" value="wandb"> W&amp;B free tier <small>live curves; needs an account and a Modal secret</small></label>
+  </doc-ask>
+
+  <doc-claim>
+    <p>The trainer keeps its step curves in <code>metrics.json</code>.</p>
+    <doc-code diff file="src/train/train_baseline.py" start="176">
+<script type="text/plain">
+@@ -176,11 +176,13 @@
+     metrics = {
+         **(dev.metrics or {}),
+         "dev_f1_per_section": {
+             section: float(score)
+             for section, score in zip(sections, per_section, strict=True)
+         },
+         "args": {key: str(value) for key, value in vars(args).items()},
+         "git_commit": commit,
+         "dataset_sha256": dataset_sha256(Path(args.data_dir)),
+         "weights_sha256": sha256_file(best_dir / "model.safetensors"),
++        # One entry for each logging step and each epoch's evaluation.
++        "log_history": trainer.state.log_history,
+     }
+</script>
+      <doc-pin line="188" tone="ok" title="The trainer never imports mlflow">report_to stays "none". The Modal image does not change.</doc-pin>
+    </doc-code>
+  </doc-claim>
+
+  <doc-claim>
+    <p>A run holds the curves, the dev scores and the hashes.</p>
+    <doc-schema id="run" lang="py" title="What one MLflow run holds">
+<script type="text/plain">
+run_name = "roberta-baseline"    # the last part of args["output_dir"]
+params = {                       # metrics.json["args"]
+    "model": "FacebookAI/roberta-base", "lr": "2e-05", "epochs": "3",
+    # … 6 more trainer flags
+}
+metrics = {                      # step curves, from metrics.json["log_history"]
+    "loss": [...], "learning_rate": [...], "grad_norm": [...],
+    "eval_f1_macro": [...], "eval_accuracy": [...],
+                                 # best epoch, once
+    "dev_f1_macro": 0.698, "dev_accuracy": 0.733, "dev_loss": 1.02,
+    "dev_f1/Art and Design": 0.81,   # … one for each of the 24 sections
+}
+tags = {"git_commit": "caf87bb…", "dataset_sha256": "…", "weights_sha256": "…"}
+artifacts = {}                   # none: best_model/ stays on the volume
+</script>
+    </doc-schema>
+    <doc-ask id="weights">
+      <p>Do we also copy best_model/ into MLflow as an artifact?</p>
+      <label><input type="radio" name="weights" value="no" checked> No <small>approximately 500 MB each run; the volume already holds it</small></label>
+      <label><input type="radio" name="weights" value="yes"> Yes <small>needs an artifact location</small></label>
+    </doc-ask>
+  </doc-claim>
+</doc-claim>
+
+<!-- ═════ 2 ═════ -->
+<doc-claim>
+  <p>One import command logs each <code>metrics.json</code> into <code>runs/mlflow.db</code>.</p>
+  <doc-calls title="Import" caption="Only the laptop talks to MLflow. Modal never does.">
+<script type="text/plain">
++ **import_run.main**(paths, --tracking-uri)                @ src/track/import_run.py
++   mlflow.set_experiment("baseline-model")                 @ src/track/import_run.py
++   **import_run**(path)                                    @ src/track/import_run.py
++     mlflow.search_runs(run name)                          @ src/track/import_run.py  -- skip if it exists
++     mlflow.log_params(args)                               @ src/track/import_run.py
++     mlflow.log_metrics(entry, step)                       @ src/track/import_run.py  -- for each log_history entry
++     mlflow.log_metrics(dev scores) · set_tags(hashes)     @ src/track/import_run.py
+</script>
+  </doc-calls>
+  <doc-ask id="store">
+    <p>Where does a Modal run write its MLflow data?</p>
+    <label><input type="radio" name="store" value="import" checked> Import <code>metrics.json</code> locally after the run <small>Modal never touches MLflow</small></label>
+    <label><input type="radio" name="store" value="volume"> One <code>mlflow.db</code> on n24-runs <small>SQLite locks on a Volume are not documented</small></label>
+  </doc-ask>
+
+  <doc-claim at="src/track/import_run.py">
+    <p><b>import_run.py</b> · import_run()</p>
+    <doc-code title="src/track/import_run.py · sketch" lang="py" hl="16-17,26" wrap>
+<script type="text/plain">
+"""Log runs from their metrics.json into the local MLflow store.
+
+The store is a cache. Delete it and import results/*.json to rebuild it:
+    uv run python -m src.track.import_run results/*.json
+"""
+
+EXPERIMENT = "baseline-model"
+
+
+def import_run(path: Path) -> str | None:
+    """Log one run. Return its run id, or None if the run is already there."""
+    record: RunRecord = json.loads(path.read_text())  # TypedDict of metrics.json
+    name = Path(record["args"]["output_dir"]).name
+    found = mlflow.search_runs(
+        filter_string=f"tags.mlflow.runName = '{name}'", output_format="list"
+    )
+    if found:
+        return None
+    with mlflow.start_run(run_name=name) as run:
+        mlflow.log_params(record["args"])
+        for entry in record["log_history"]:
+            step = entry.pop("step")
+            entry.pop("epoch")
+            mlflow.log_metrics(entry, step=step)
+        mlflow.log_metrics(
+            {k: v for k, v in record.items() if k.startswith("dev_") and isinstance(v, float)}
+            | {f"dev_f1/{s.replace('&', 'and')}": v for s, v in record["dev_f1_per_section"].items()}
+        )
+        mlflow.set_tags({key: str(record[key]) for key in ("git_commit", "dataset_sha256", "weights_sha256")})
+    return run.info.run_id
+</script>
+      <doc-pin line="17" tone="ok" title="Import twice, log once">The runfile and a rebuild can both import the same file.</doc-pin>
+      <doc-pin line="26" tone="warn" title="Metric names">MLflow refuses "&amp;" in a metric name, and "Art &amp; Design" is a section.</doc-pin>
+    </doc-code>
+  </doc-claim>
+</doc-claim>
+
+<!-- ═════ 3 ═════ -->
+<doc-claim>
+  <p>The user compares runs in <code>mlflow ui</code> on the laptop.</p>
+  <doc-mock frame="terminal" title="baseline-news24" w="480" caption="results/ in git can rebuild the store on any clone."><template><span class="dim">$</span> uv run python -m src.track.import_run results/*.json
+<span class="g">✓</span> roberta-baseline  imported
+<span class="dim">·</span> roberta-lr3e-5    already in runs/mlflow.db
+<span class="dim">$</span> uv run mlflow ui --backend-store-uri sqlite:///runs/mlflow.db
+<span class="g">INFO</span> Listening at: <b>http://127.0.0.1:5000</b>
+
+<span class="dim"># a local CPU run imports the same way</span>
+<span class="dim">$</span> uv run python -m src.track.import_run runs/smoke-1/metrics.json</template></doc-mock>
+</doc-claim>
+
+<!-- ═════ 4 ═════ -->
+<doc-claim>
+  <p>The offline tests import a smoke run into a temporary store.</p>
+  <doc-code title="tests/test_import_run.py · sketch" lang="py">
+<script type="text/plain">
+class ImportRunTests(unittest.TestCase):
+    def test_imports_curves_scores_and_tags_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "roberta-test.json"
+            path.write_text(json.dumps(fixture_record()))  # output_dir ".../roberta-test"
+            mlflow.set_tracking_uri(f"sqlite:///{Path(tmp) / 'mlflow.db'}")
+            mlflow.set_experiment(import_run.EXPERIMENT)
+
+            run_id = import_run.import_run(path)
+            again = import_run.import_run(path)
+
+            self.assertIsNone(again)
+            run = mlflow.get_run(run_id)
+            self.assertEqual(run.data.tags["git_commit"], "abc123")
+            self.assertIn("dev_f1/Art and Design", run.data.metrics)
+            history = mlflow.MlflowClient().get_metric_history(run_id, "loss")
+            self.assertEqual([m.step for m in history], [50, 100])
+</script>
+    <doc-pin line="13" tone="ok" title="Idempotent">A second import adds no run.</doc-pin>
+  </doc-code>
+  <doc-note tone="info">The current smoke test also gets one line: it asserts that <code>metrics.json</code> has a non-empty <code>log_history</code>.</doc-note>
+</doc-claim>
+
+<!-- ═════ 5 ═════ -->
+<doc-claim>
+  <p>One command trains on Modal, imports the run, and stages its metrics.</p>
+  <doc-mock frame="terminal" title="baseline-news24" w="480" caption="Only results/ goes to GitHub. runs/ and runs_modal/ stay ignored."><template><span class="dim">$</span> bash runs/train_modal.sh roberta-lr3e-5 "--lr 3e-5"
+<span class="dim">… Modal trains on an L4 …</span>
+<span class="g">✓</span> roberta-lr3e-5 imported into runs/mlflow.db
+<span class="g">✓</span> results/roberta-lr3e-5.json <b>staged</b>
+<span class="dim">$</span> git commit -m "Add roberta-lr3e-5 results"</template></doc-mock>
+  <doc-ask id="gitstep">
+    <p>What does the runfile do in git?</p>
+    <label><input type="radio" name="gitstep" value="stage" checked> <code>git add</code> only <small>you commit; hooks run on your commit</small></label>
+    <label><input type="radio" name="gitstep" value="commit"> <code>git add</code> and <code>git commit</code> <small>one commit for each run; never pushes</small></label>
+  </doc-ask>
+  <doc-ask id="smoke">
+    <p>Do smoke runs go to <code>results/</code> too?</p>
+    <label><input type="radio" name="smoke" value="no" checked> No <small>smoke runs keep the plain <code>modal run</code> command</small></label>
+    <label><input type="radio" name="smoke" value="yes"> Yes <small>every run through the runfile goes to git</small></label>
+  </doc-ask>
+
+  <doc-claim>
+    <p>The runfile trains, downloads, imports, and stages in that order.</p>
+    <doc-code title="runs/train_modal.sh · sketch" lang="bash" hl="9-11">
+<script type="text/plain">
+#!/usr/bin/env bash
+# Train on Modal, then publish the run's metrics.json to results/.
+# Usage: bash runs/train_modal.sh <name> ["extra trainer flags"]
+set -euo pipefail
+name="$1"
+args="${2:-}"
+uv run modal run -m src.train.modal_train --name "$name" --args "$args"
+mkdir -p results
+uv run modal volume get n24-runs "$name/metrics.json" - > "results/$name.json"
+uv run python -m src.track.import_run "results/$name.json"
+git add "results/$name.json"
+</script>
+      <doc-pin line="4" tone="ok" title="Stops on failure">A failed training run publishes nothing.</doc-pin>
+      <doc-pin line="9" tone="info" title="Straight from the volume">The file in git is byte for byte the run's metrics.json.</doc-pin>
+    </doc-code>
+  </doc-claim>
+
+  <doc-claim>
+    <p>Git tracks the runfile, because <code>runs/</code> is ignored.</p>
+    <doc-code diff file=".gitignore" start="166">
+<script type="text/plain">
+@@ -166,3 +166,4 @@
+ # Training outputs
+ /runs/*
+ !/runs/perform_ci.sh
++!/runs/train_modal.sh
+</script>
+      <doc-pin line="169" tone="ok" title="CI checks its syntax">perform_ci.sh runs bash -n on each runs/*.sh file.</doc-pin>
+    </doc-code>
+  </doc-claim>
+
+  <doc-claim>
+    <p>Git marks <code>results/*.json</code> as generated, so the 20 KB limit skips them.</p>
+    <doc-code title=".gitattributes · new" lang="bash">
+<script type="text/plain">
+# Training runs write these files. runs/train_modal.sh copies them unchanged.
+results/*.json linguist-generated=true
+</script>
+      <doc-pin line="2" tone="warn" title="log_history is large">3 epochs log approximately 90 steps: near 20 KB with the indent.</doc-pin>
+    </doc-code>
+  </doc-claim>
+</doc-claim>
+
+<!-- ═════ shared ═════ -->
+<doc-claim aux="shared">
+  <p>Shared: <code>mlflow</code> goes in the dev group, so the Modal image skips it.</p>
+  <doc-code diff file="pyproject.toml" start="20">
+<script type="text/plain">
+@@ -20,7 +20,8 @@
+ [dependency-groups]
+ dev = [
+     "ipykernel>=7.4.0",
+     "jupyter>=1.1.1",
++    "mlflow>=X.Y.Z",
+     "modal>=1.6.2",
+     "python-dotenv>=1.2.4",
+     "tqdm>=4.70.1",
+</script>
+  </doc-code>
+  <doc-note tone="info">The Modal image runs <code>uv_sync --no-dev</code>. CI and <code>uv run</code> include the dev group by default. <code>uv add --dev mlflow</code> fills in the latest version.</doc-note>
+</doc-claim>
+
+<!-- ═════ scope ═════ -->
+<doc-claim aux="scope">
+  <p>Not changing: the Modal entrypoint, the model files, legacy code, cost.</p>
+  <ul>
+    <li><code>metrics.json</code> stays the record of a run. <code>runs/mlflow.db</code> is a private cache and never goes to git.</li>
+    <li><code>src/train/modal_train.py</code> does not change.</li>
+    <li>No MLflow server, model registry or artifact store.</li>
+    <li>No paid service, no account, no new secret.</li>
+    <li><code>scripts/news-classifier.py</code> stays frozen (ADR 0001).</li>
+    <li>Also new: a README section and ADR 0005 for the choice of tracker.</li>
+  </ul>
+</doc-claim>
+
+</doc-plan>
+</main>
+</body></html>
