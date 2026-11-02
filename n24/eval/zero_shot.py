@@ -20,7 +20,6 @@ for a model downloads them.
 """
 
 import hashlib
-from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -81,6 +80,11 @@ def build_messages(abstract: str, sections: list[str]) -> Chat:
         {"role": "system", "content": SYSTEM},
         {"role": "user", "content": USER.format(sections=listing, abstract=abstract)},
     ]
+
+
+def zero_shot_run_name(model: str) -> str:
+    """The results file's run name: zs- and the model name without its org."""
+    return f"zs-{model.split('/')[-1]}"
 
 
 def prompt_sha256() -> str:
@@ -146,23 +150,23 @@ def evaluate(
     data_dir: Path,
     results_dir: Path,
     predict: Predict,
-    commit: str | None,
+    commit: str,
 ) -> ZeroShotResults:
     """Predict the test split twice and write results_dir/zs-<model name>.json.
     Refuses to overwrite an existing results file."""
     test = load_test_split(data_dir)
     sections = test.features["label"].names
     chats = [build_messages(abstract, sections) for abstract in test["abstract"]]
-    first = np.array(predict(chats, sections))
-    second = np.array(predict(chats, sections))
-    run = f"zs-{model.split('/')[-1]}"
+    first_pass_section_ids = np.array(predict(chats, sections))
+    second_pass_section_ids = np.array(predict(chats, sections))
+    run = zero_shot_run_name(model)
     results = ZeroShotResults(
-        **score_test_split(run, data_dir, test, first).model_dump(),
+        **score_test_split(run, data_dir, test, first_pass_section_ids).model_dump(),
         model=model,
         model_revision=revision,
         prompt_sha256=prompt_sha256(),
         git_commit=commit,
-        label_mismatches=int(np.sum(first != second)),
+        label_mismatches=int(np.sum(first_pass_section_ids != second_pass_section_ids)),
     )
     write_results(results, results_dir)
 
@@ -179,61 +183,11 @@ def evaluate(
     return results
 
 
-@app.function(
-    image=image,
-    gpu=DEFAULT_GPUS,
-    volumes={HF_CACHE_DIR: hf_cache},
-    timeout=60 * 60,
-    single_use_containers=True,
-)
-def answer_remote(model: str, revision: str, chats: list[Chat]) -> list[str]:
-    """The raw answer for each chat, with the same settings as predict_remote
-    but no constraint on the output."""
-    from vllm import SamplingParams  # pyright: ignore[reportMissingImports]
-
-    llm = load_llm(model, revision)
-    params = SamplingParams(temperature=0.0, max_tokens=16)
-    outputs = llm.chat(chats, params, chat_template_kwargs={"enable_thinking": False})
-    return [output.outputs[0].text for output in outputs]
-
-
 def pinned_revision(model: str) -> str:
     revision = HfApi().model_info(model).sha
     if revision is None:
         raise ValueError(f"Hugging Face returned no commit for {model}")
     return revision
-
-
-@app.local_entrypoint()
-def probe(
-    model: str,
-    n: int = 50,
-    data_dir: str = "datasets/prepared",
-    gpu: str | None = None,
-) -> None:
-    """Print the model's unconstrained answers for the first n test abstracts.
-    A diagnostic: it writes nothing and scores nothing.
-
-        uv run modal run -m n24.eval.zero_shot::probe --model Qwen/Qwen3-0.6B
-    """
-    test = load_test_split(Path(data_dir)).select(range(n))
-    sections = test.features["label"].names
-    chats = [build_messages(abstract, sections) for abstract in test["abstract"]]
-    answers = on_gpu(answer_remote, gpu).remote(model, pinned_revision(model), chats)
-
-    table = Table(title=f"{model}: unconstrained answers")
-    table.add_column("Abstract", max_width=60, overflow="ellipsis", no_wrap=True)
-    table.add_column("Gold")
-    table.add_column("Answer")
-    table.add_column("Section?")
-    for abstract, label, answer in zip(test["abstract"], test["label"], answers):
-        table.add_row(
-            abstract, sections[label], repr(answer), str(answer.strip() in sections)
-        )
-    print(table)
-    matches = sum(answer.strip() in sections for answer in answers)
-    print(f"Exact section names: {matches}/{n}")
-    print(Counter(answer.strip() for answer in answers).most_common())
 
 
 @app.local_entrypoint()
@@ -255,7 +209,7 @@ def probes(
         model, pinned_revision(model), chats, sections
     )
     results = score_probes(
-        f"zs-{model.split('/')[-1]}",
+        zero_shot_run_name(model),
         external,
         [sections[i] for i in ids],
         Path(probes_path),

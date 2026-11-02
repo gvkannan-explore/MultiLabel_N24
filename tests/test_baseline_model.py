@@ -4,14 +4,17 @@ They run offline on tiny synthetic split files with three sections.
 """
 
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import torch
 
 from n24.data import prepare_data
 from n24.train import train_baseline
+from n24.train.metrics import TrainingMetrics
 
 SECTIONS = ["Travel", "Books", "Sports"]
 
@@ -161,6 +164,19 @@ class TrainBaselineTests(unittest.TestCase):
         self.assertAlmostEqual(metrics["f1_macro"], float(np.mean(expected)))
         self.assertAlmostEqual(metrics["accuracy"], accuracy_score(labels, preds))
 
+    def test_first_array_unwraps_a_tuple_of_outputs(self):
+        import numpy as np
+
+        logits = np.zeros((2, 3))
+        self.assertIs(train_baseline.first_array(logits), logits)
+        self.assertIs(train_baseline.first_array((logits, np.ones(2))), logits)
+
+    def test_git_commit_raises_outside_a_git_checkout(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(train_baseline, "ROOT", Path(tmp)):
+                with self.assertRaises(subprocess.CalledProcessError):
+                    train_baseline.git_commit()
+
     def test_smoke_run_writes_best_model_and_metrics(self):
         from transformers import AutoModelForSequenceClassification
 
@@ -188,7 +204,9 @@ class TrainBaselineTests(unittest.TestCase):
             # Training's tokenizer cache files must not change the hash.
             self.assertTrue(list((root / "prepared").rglob("cache-*.arrow")))
             self.assertEqual(saved["dataset_sha256"], before)
-            self.assertEqual(saved, metrics)
+            self.assertEqual(TrainingMetrics.model_validate(saved), metrics)
+            # The trainer's own dev metrics are written too, beyond the model's fields.
+            self.assertIn("dev_runtime", saved)
             self.assertEqual(saved["git_commit"], "abc123")
             # The CUDA device's name, or None on a machine without CUDA.
             expected_gpu = (

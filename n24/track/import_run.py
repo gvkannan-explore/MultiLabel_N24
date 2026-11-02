@@ -13,26 +13,11 @@ import argparse
 from pathlib import Path
 
 import mlflow
-from pydantic import BaseModel
 from rich import print
 
+from n24.train.metrics import TrainingMetrics
+
 EXPERIMENT = "baseline-model"
-
-
-class TrainingMetrics(BaseModel):
-    """The fields of a run's metrics.json that the import logs."""
-
-    dev_loss: float
-    dev_accuracy: float
-    dev_f1_macro: float
-    dev_f1_per_section: dict[str, float]
-    args: dict[str, str]
-    git_commit: str | None
-    # Runs trained before the trainer recorded the GPU have no gpu field.
-    gpu: str | None = None
-    dataset_sha256: str
-    weights_sha256: str
-    log_history: list[dict[str, float]]
 
 
 def import_run(path: Path) -> str | None:

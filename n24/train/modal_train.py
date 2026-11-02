@@ -19,6 +19,7 @@ import shlex
 
 import modal
 
+from n24.train.metrics import TrainingMetrics
 from n24.train.train_baseline import git_commit, parse_args, train
 
 app = modal.App("n24-baseline")
@@ -46,7 +47,7 @@ runs = modal.Volume.from_name("n24-runs", create_if_missing=True)
     timeout=2 * 60 * 60,
     volumes={"/news24-data": data, "/news24-runs": runs},
 )
-def train_remote(argv: list[str], commit: str | None) -> dict:
+def train_remote(argv: list[str], commit: str) -> TrainingMetrics:
     metrics = train(parse_args(argv), commit)
     runs.commit()
     return metrics

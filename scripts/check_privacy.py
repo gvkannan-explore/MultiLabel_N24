@@ -2,6 +2,7 @@
 
 import argparse
 import getpass
+import hashlib
 import json
 import os
 import re
@@ -152,8 +153,6 @@ def scan(root: Path, mode: str, ref: str = "HEAD") -> int:
             tags |= findings(data, identities)
             if tags:
                 # Report a path hash rather than echoing a potentially personal filename.
-                import hashlib
-
                 file_id = hashlib.sha256(raw_path).hexdigest()[:12]
                 print(
                     f"Privacy blocked: file-id={file_id} ref={version[:12]} rules={','.join(sorted(tags))}"

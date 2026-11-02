@@ -115,6 +115,11 @@ class ZeroShotTests(unittest.TestCase):
             self.evaluate(labels, labels)
 
 
+class RunNameTests(unittest.TestCase):
+    def test_run_name_is_zs_and_the_model_name_without_its_org(self):
+        self.assertEqual(zero_shot.zero_shot_run_name("org/Tiny-LM"), "zs-Tiny-LM")
+
+
 class GpuTests(unittest.TestCase):
     def test_without_gpu_the_function_keeps_its_default_gpus(self):
         function = zero_shot.predict_remote

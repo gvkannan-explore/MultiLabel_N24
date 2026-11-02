@@ -16,6 +16,7 @@ from test_baseline_model import SECTIONS, make_tiny_run
 
 from n24.api.app import create_app
 from n24.eval import run
+from n24.train.metrics import TrainingMetrics
 
 
 class InferenceApiTests(unittest.TestCase):
@@ -57,12 +58,11 @@ class InferenceApiTests(unittest.TestCase):
             for prediction in body["predictions"]
         ]
         self.assertEqual(section_ids, self.results.predictions)
-        max_length = int(
-            run.RunMetrics.model_validate_json(
-                (self.run_dir / "metrics.json").read_text()
-            ).args["max_length"]
+        expected = run.predict(
+            self.run_dir / "best_model",
+            self.abstracts,
+            TrainingMetrics.from_run_dir(self.run_dir).max_length,
         )
-        expected = run.predict(self.run_dir / "best_model", self.abstracts, max_length)
         np.testing.assert_allclose(
             [prediction["logits"] for prediction in body["predictions"]],
             expected,

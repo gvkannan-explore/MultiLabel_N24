@@ -25,20 +25,12 @@ from transformers import (
     PreTrainedTokenizerBase,
 )
 
+from n24.train.metrics import TrainingMetrics
 from n24.train.train_baseline import dataset_sha256, f1_per_section, sha256_file
 
 # Bump when this harness or the test split changes, then rerun every model.
 EVAL_VERSION = 1
 BATCH_SIZE = 32
-
-
-class RunMetrics(BaseModel):
-    """The fields of a run's metrics.json that the harness reads."""
-
-    git_commit: str | None
-    weights_sha256: str
-    dataset_sha256: str
-    args: dict[str, str]
 
 
 class Hashes(BaseModel):
@@ -101,12 +93,17 @@ def score_test_split(
     )
 
 
+def write_new_json(model: BaseModel, path: Path) -> None:
+    """Write model as JSON to path. Refuses to overwrite an existing file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "x") as stream:
+        stream.write(model.model_dump_json(indent=2) + "\n")
+
+
 def write_results(results: TestScores, results_dir: Path) -> Path:
     """Write results_dir/<run>.json. Refuses to overwrite an existing file."""
-    results_dir.mkdir(parents=True, exist_ok=True)
     results_path = results_dir / f"{results.run}.json"
-    with open(results_path, "x") as stream:
-        stream.write(results.model_dump_json(indent=2) + "\n")
+    write_new_json(results, results_path)
     print(
         f"{results.run}: test macro F1 {results.test_f1_macro:.4f}, "
         f"accuracy {results.test_accuracy:.4f} -> {results_path}"
@@ -156,15 +153,14 @@ def evaluate(run_dir: Path, data_dir: Path, results_dir: Path) -> Results:
     results_dir/<run>.json. Refuses to overwrite an existing results file."""
 
     torch.use_deterministic_algorithms(True)
-    metrics = RunMetrics.model_validate_json((run_dir / "metrics.json").read_text())
+    metrics = TrainingMetrics.from_run_dir(run_dir)
     test = load_test_split(data_dir)
 
     # Tokenize with the run's own max length, so the input matches training.
     model_dir = run_dir / "best_model"
-    max_length = int(metrics.args["max_length"])
-    first = predict(model_dir, test["abstract"], max_length)
-    second = predict(model_dir, test["abstract"], max_length)
-    preds = first.argmax(axis=-1)
+    first_pass_logits = predict(model_dir, test["abstract"], metrics.max_length)
+    second_pass_logits = predict(model_dir, test["abstract"], metrics.max_length)
+    preds = first_pass_logits.argmax(axis=-1)
 
     results = Results(
         **score_test_split(run_dir.name, data_dir, test, preds).model_dump(),
@@ -178,8 +174,10 @@ def evaluate(run_dir: Path, data_dir: Path, results_dir: Path) -> Results:
             recorded=metrics.dataset_sha256, recomputed=dataset_sha256(data_dir)
         ),
         repeatability=Repeatability(
-            label_mismatches=int(np.sum(preds != second.argmax(axis=-1))),
-            max_abs_logit_diff=float(np.max(np.abs(first - second))),
+            label_mismatches=int(np.sum(preds != second_pass_logits.argmax(axis=-1))),
+            max_abs_logit_diff=float(
+                np.max(np.abs(first_pass_logits - second_pass_logits))
+            ),
         ),
         torch_version=torch.__version__,
         transformers_version=transformers.__version__,

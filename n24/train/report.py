@@ -8,11 +8,12 @@ split; test split scores come from the eval harness and the deployment gate.
 
 from datetime import timedelta
 from pathlib import Path
-from typing import Any
 
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.figure import Figure, SubFigure
 from matplotlib.patches import FancyBboxPatch
+
+from n24.train.metrics import TrainingMetrics
 
 INK, MUTED, RULE, PANEL = "#1a1c1f", "#6b7280", "#e5e7eb", "#f6f7f9"
 TRAIN, EVAL, BELOW = "#7a5af8", "#0ea5a4", "#f59e0b"
@@ -59,10 +60,10 @@ def table(fig: SubFigure, x: float, title: str, rows: dict[str, str]) -> None:
         fig.text(x + 0.13, y, value, fontsize=9, color=INK, family="monospace")
 
 
-def summary_page(metrics: dict[str, Any]) -> Figure:
-    args: dict[str, str] = metrics["args"]
-    log_history: list[dict[str, float]] = metrics["log_history"]
-    per_section: dict[str, float] = metrics["dev_f1_per_section"]
+def summary_page(metrics: TrainingMetrics) -> Figure:
+    args = metrics.args
+    log_history = metrics.log_history
+    per_section = metrics.dev_f1_per_section
     best = best_eval(log_history)
     # The trainer's end-of-training summary is the entry with train_runtime.
     summary = next(e for e in log_history if "train_runtime" in e)
@@ -92,9 +93,9 @@ def summary_page(metrics: dict[str, Any]) -> Figure:
 
     for i, (label, value) in enumerate(
         [
-            ("Dev macro F1", f"{metrics['dev_f1_macro']:.1%}"),
-            ("Dev accuracy", f"{metrics['dev_accuracy']:.1%}"),
-            ("Dev loss", f"{metrics['dev_loss']:.3f}"),
+            ("Dev macro F1", f"{metrics.dev_f1_macro:.1%}"),
+            ("Dev accuracy", f"{metrics.dev_accuracy:.1%}"),
+            ("Dev loss", f"{metrics.dev_loss:.3f}"),
             (f"Kept epoch (step {int(best['step'])})", f"{best['epoch']:.3g}"),
         ]
     ):
@@ -128,17 +129,17 @@ def summary_page(metrics: dict[str, Any]) -> Figure:
     table(
         details, 0.38, "Reproducibility",
         {
-            "Git commit": str(metrics["git_commit"]),
-            "Dataset sha256": metrics["dataset_sha256"],
-            "Weights sha256": metrics["weights_sha256"],
+            "Git commit": str(metrics.git_commit),
+            "Dataset sha256": metrics.dataset_sha256,
+            "Weights sha256": metrics.weights_sha256,
         },
     )  # fmt: skip
     return fig
 
 
-def sections_page(metrics: dict[str, Any]) -> Figure:
-    per_section: dict[str, float] = metrics["dev_f1_per_section"]
-    macro = metrics["dev_f1_macro"]
+def sections_page(metrics: TrainingMetrics) -> Figure:
+    per_section = metrics.dev_f1_per_section
+    macro = metrics.dev_f1_macro
     ranked = sorted(per_section.items(), key=lambda item: item[1])
 
     fig = Figure(figsize=PAGE, layout="constrained", facecolor="white")
@@ -168,8 +169,8 @@ def sections_page(metrics: dict[str, Any]) -> Figure:
     return fig
 
 
-def curves_page(metrics: dict[str, Any]) -> Figure:
-    log_history: list[dict[str, float]] = metrics["log_history"]
+def curves_page(metrics: TrainingMetrics) -> Figure:
+    log_history = metrics.log_history
     best_step = best_eval(log_history)["step"]
 
     def curve(name: str) -> tuple[list[int], list[float]]:
@@ -223,7 +224,7 @@ def curves_page(metrics: dict[str, Any]) -> Figure:
     return fig
 
 
-def write_report(metrics: dict[str, Any], path: Path) -> None:
+def write_report(metrics: TrainingMetrics, path: Path) -> None:
     """Write the three report pages for a run's metrics.json fields to path."""
     with PdfPages(path) as pdf:
         for page in (summary_page, sections_page, curves_page):

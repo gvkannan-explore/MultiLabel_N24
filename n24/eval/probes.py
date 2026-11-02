@@ -17,7 +17,8 @@ from pydantic import BaseModel
 from rich import print
 from rich.table import Table
 
-from n24.eval.run import RunMetrics, predict
+from n24.eval.run import predict, write_new_json
+from n24.train.metrics import TrainingMetrics
 from n24.train.train_baseline import sha256_file
 
 PROBES_PATH = Path("datasets/external_probes/examples.jsonl")
@@ -83,10 +84,8 @@ def score_probes(
 
 def write_probe_results(results: ProbeResults, results_dir: Path) -> Path:
     """Write results_dir/<run>.json. Refuses to overwrite an existing file."""
-    results_dir.mkdir(parents=True, exist_ok=True)
     path = results_dir / f"{results.run}.json"
-    with open(path, "x") as stream:
-        stream.write(results.model_dump_json(indent=2) + "\n")
+    write_new_json(results, path)
     print(f"-> {path}")
     return path
 
@@ -104,14 +103,11 @@ def main() -> None:
     id2label = ModelConfig.model_validate_json(
         (model_dir / "config.json").read_text()
     ).id2label
-    metrics = RunMetrics.model_validate_json(
-        (args.run_dir / "metrics.json").read_text()
-    )
     probes = load_probes(args.probes, list(id2label.values()))
     logits = predict(
         model_dir,
         [probe.abstract for probe in probes],
-        int(metrics.args["max_length"]),
+        TrainingMetrics.from_run_dir(args.run_dir).max_length,
     )
     predicted = [id2label[int(i)] for i in logits.argmax(axis=-1)]
     results = score_probes(args.run_dir.name, probes, predicted, args.probes)

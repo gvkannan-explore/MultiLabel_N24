@@ -16,6 +16,7 @@ from typing import cast
 import numpy as np
 import torch
 from datasets import DatasetDict, load_from_disk
+from rich import print, print_json
 from torch.utils.data import Dataset as TorchDataset
 from transformers import (
     AutoModelForSequenceClassification,
@@ -28,26 +29,38 @@ from transformers import (
 )
 
 from n24.train import report
+from n24.train.metrics import TrainingMetrics
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def f1_per_section(labels: np.ndarray, preds: np.ndarray, n: int) -> np.ndarray:
+def f1_per_section(
+    labels: np.ndarray, preds: np.ndarray, number_of_sections: int
+) -> np.ndarray:
     """F1 for each section: 2 * true positives / (predicted + actual). A section
     with no predictions and no examples scores 0, as with scikit-learn's
     zero_division=0."""
-    true_positives = np.bincount(labels[labels == preds], minlength=n)
-    counts = np.bincount(preds, minlength=n) + np.bincount(labels, minlength=n)
-    return np.divide(2 * true_positives, counts, out=np.zeros(n), where=counts > 0)
+    true_positives = np.bincount(labels[labels == preds], minlength=number_of_sections)
+    counts = np.bincount(preds, minlength=number_of_sections) + np.bincount(
+        labels, minlength=number_of_sections
+    )
+    return np.divide(
+        2 * true_positives,
+        counts,
+        out=np.zeros(number_of_sections),
+        where=counts > 0,
+    )
+
+
+def first_array(output: np.ndarray | tuple[np.ndarray, ...]) -> np.ndarray:
+    """The Trainer returns a tuple when the model has several outputs; the
+    logits or labels come first."""
+    return output[0] if isinstance(output, tuple) else output
 
 
 def compute_metrics(eval_pred: EvalPrediction) -> dict[str, float]:
-    logits = eval_pred.predictions
-    if isinstance(logits, tuple):
-        logits = logits[0]
-    labels = eval_pred.label_ids
-    if isinstance(labels, tuple):
-        labels = labels[0]
+    logits = first_array(eval_pred.predictions)
+    labels = first_array(eval_pred.label_ids)
     preds = np.argmax(logits, axis=-1)
     return {
         "accuracy": float(np.mean(preds == labels)),
@@ -55,18 +68,17 @@ def compute_metrics(eval_pred: EvalPrediction) -> dict[str, float]:
     }
 
 
-def git_commit() -> str | None:
-    """The commit the code ran from, with a -dirty suffix for uncommitted changes."""
-    try:
-        return subprocess.run(
-            ["git", "describe", "--always", "--dirty", "--abbrev=40"],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-    except (OSError, subprocess.CalledProcessError):
-        return None
+def git_commit() -> str:
+    """The commit the code ran from, with a -dirty suffix for uncommitted changes.
+    Raises outside a git checkout: the deployment gate rejects a run with no
+    recorded commit, so it must not start."""
+    return subprocess.run(
+        ["git", "describe", "--always", "--dirty", "--abbrev=40"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
 
 
 def sha256_file(path: Path) -> str:
@@ -93,7 +105,7 @@ def dataset_sha256(data_dir: Path) -> str:
     return digest.hexdigest()
 
 
-def train(args: argparse.Namespace, commit: str | None) -> dict:
+def train(args: argparse.Namespace, commit: str) -> TrainingMetrics:
     """Train and write the run. `commit` is recorded in metrics.json; the
     caller passes it because a Modal container has no git checkout."""
     output_dir = Path(args.output_dir)
@@ -167,12 +179,10 @@ def train(args: argparse.Namespace, commit: str | None) -> dict:
     # The best epoch is loaded. Score it on the dev split once more for the
     # per-section F1.
     dev = trainer.predict(cast(TorchDataset, tokenized["dev"]), metric_key_prefix="dev")
-    logits = (
-        dev.predictions[0] if isinstance(dev.predictions, tuple) else dev.predictions
-    )
-    labels = dev.label_ids[0] if isinstance(dev.label_ids, tuple) else dev.label_ids
-    if labels is None:
+    if dev.label_ids is None:
         raise ValueError("Expected labels in the dev split")
+    logits = first_array(dev.predictions)
+    labels = first_array(dev.label_ids)
     per_section = f1_per_section(labels, np.argmax(logits, axis=-1), len(sections))
 
     best_dir = output_dir / "best_model"
@@ -196,11 +206,10 @@ def train(args: argparse.Namespace, commit: str | None) -> dict:
         "log_history": trainer.state.log_history,
     }
     (output_dir / "metrics.json").write_text(json.dumps(metrics, indent=2) + "\n")
-    report.write_report(metrics, output_dir / "training_report.pdf")
-    print(
-        json.dumps({k: v for k, v in metrics.items() if k.startswith("dev_")}, indent=2)
-    )
-    return metrics
+    training_metrics = TrainingMetrics.model_validate(metrics)
+    report.write_report(training_metrics, output_dir / "training_report.pdf")
+    print_json(data={k: v for k, v in metrics.items() if k.startswith("dev_")})
+    return training_metrics
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
