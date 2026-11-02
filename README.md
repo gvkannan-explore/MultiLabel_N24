@@ -132,12 +132,13 @@ sequence classification. The model input is the abstract alone.
 uv run python -m n24.train.train_baseline --data-dir datasets/prepared --output-dir experiment_runs/roberta-baseline
 ```
 
-Pass `--model answerdotai/ModernBERT-base` to train ModernBERT through the same
-trainer. Its saved run uses the existing evaluation and inference API commands,
-and the deployment image accepts its encoder type. A five-step CPU smoke run:
+Pass `--model answerdotai/ModernBERT-base` or `--model dmis-lab/UltraBERT-150M`
+to train ModernBERT or UltraBERT through the same trainer. Their saved runs use
+the existing evaluation and inference API commands, and the deployment image
+accepts both encoder types. A five-step CPU smoke run:
 
 ```bash
-uv run python -m n24.train.train_baseline --model answerdotai/ModernBERT-base --data-dir datasets/prepared --output-dir experiment_runs/modernbert-smoke --max-steps 5 --batch-size 4 --max-length 64 --use-cpu
+bash bins/train/smoke_test.sh --model answerdotai/ModernBERT-base --use-cpu
 ```
 
 Use a GPU for the full run. How a run works:
@@ -187,7 +188,9 @@ from abstracts alone; see ADR 0004 before you change it.
 
 **Smoke runs.** `--max-steps 5` stops after five steps, scoring and saving at
 that step instead of at each epoch. `bash bins/train/smoke_test.sh` does
-this into `experiment_runs/smoke-1` to check that the trainer runs end to end.
+this into `experiment_runs/smoke-1`, then freezes the run the way the
+deployment image does, to check that the model trains and deploys end to end.
+Extra arguments go to the trainer, such as `--model` and `--use-cpu`.
 
 ## Training on Modal
 

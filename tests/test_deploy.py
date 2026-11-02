@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import numpy as np
 from fastapi.testclient import TestClient
 from test_baseline_model import (
     fixture_splits,
@@ -122,20 +123,20 @@ class FreezeRunTests(unittest.TestCase):
         ])  # fmt: skip
         metrics = train(args, "abc123")
         results = run.evaluate(run_dir, data_dir, self.root / "results")
+        abstracts = [record["abstract"] for record in fixture_splits()["test"]]
+        eval_logits = run.predict(run_dir / "best_model", abstracts, args.max_length)
         freeze_run(run_dir, metrics.weights_sha256, self.dest)
         shutil.rmtree(run_dir)
         client = TestClient(create_app(self.dest / "modernbert-run"))
-        response = client.post(
-            "/predict",
-            json={
-                "abstracts": [record["abstract"] for record in fixture_splits()["test"]]
-            },
-        )
+        response = client.post("/predict", json={"abstracts": abstracts})
         self.assertEqual(response.status_code, 200, response.text)
         body = response.json()
         self.assertEqual(
             [body["sections"].index(item["section"]) for item in body["predictions"]],
             results.predictions,
+        )
+        np.testing.assert_allclose(
+            [item["logits"] for item in body["predictions"]], eval_logits, atol=1e-5
         )
 
 

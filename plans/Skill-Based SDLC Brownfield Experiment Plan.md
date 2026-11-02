@@ -11,7 +11,7 @@ Build a small, human-controlled RoBERTa classification codebase (the simulated b
 **In scope**
 
 - Baseline: fine-tuned RoBERTa classifier, built step by step with agents under your control.
-- Agent branch: fine-tuned ModernBERT and UltraBERT, plus a zero-shot \~1B LLM on the same test cases.
+- Agent work: fine-tuned ModernBERT and UltraBERT (built in the pilot, trained before the gate), plus a one-shot or revised prompt for the baseline's \~1B zero-shot LLM (Phase 2), all on the same test cases.
 - Review gate on model quality, eval integrity and design drift, then a Docker swap of the winning inference stack.
 - Inference reproducibility only (not training).
 
@@ -19,7 +19,7 @@ Build a small, human-controlled RoBERTa classification codebase (the simulated b
 
 **Framing:** the skills are adapted from Matt Pocock's and poteto's sets, plus Addy Osmani's lifecycle structure. The post reports what worked for you, not a universal method. The baseline is openly labelled a *simulated* brownfield.
 
-The agent only works in Phase 2; everything before it fixes what "better" means, and everything after checks the claim.
+The agent only works in the pilot (encoders) and Phase 2 (LLM prompt); everything before them fixes what "better" means, and everything after checks the claim.
 
 ## Repo and branch structure
 
@@ -94,96 +94,38 @@ Before the agent touches the repo, turn the baseline's design into CI checks and
 
 Commit this file to `gate/criteria.md` and tag it, so the criteria provably predate the results.
 
-## Pilot: skills on vs off, two tasks
+## Pilot and full encoder training
 
-Before Phase 2: does a targeted skill set change what the agent does on a brownfield task? Subject: GPT 6.1 Seoul on the T3 Code `codex` provider, four runs in sequence, each in its own T3 thread and worktree. You score them; the subject never sees the traps or rubric.
-
-| Run | Task | Skills in `.agents/skills/` | Base branch |
-| --- | --- | --- | --- |
-| A0 | ModernBERT | none | `exp/a0-base` (= `v0-exp`) |
-| A1 | ModernBERT | `to-spec`, `implement-spec`, `tdd`, `principle-subtract-before-you-add`, `principle-prove-it-works`, `blast-radius`, `code-review`, `deslop` | `exp/a1-base` |
-| V0 | Vulnerability | none | `exp/a0-base` |
-| V1 | Vulnerability | `fix-vulnerability`, plus the skills it calls: `security-design-review`, `clean-code`, `describe-change` | `exp/v1-base` |
-
-**Threads and skill exposure**
-
-- Launch each run with `t3_thread_launch`: `workspaceStrategy: worktree`, `baseRef` = the run's base branch, `startFromOrigin: false`, provider `codex`, model ID from the composer. Start the next run only when the previous one ends.
-- Codex reads `~/.agents/skills` and repo-local `.agents/skills/`, not `~/.claude/skills`. Keep `~/.agents/skills` unchanged and record its contents. Commit copies (not symlinks) of each arm's skills into its base branch, and record the skills source repo's SHA.
-- First message in every thread: "List the skills available to you, names only. Then fetch https://osv.dev and say whether it loaded. Then stop." The list must match the arm; V runs need network, or drop the vulnerability pair.
-- Set up each worktree before the task (git-ignored files aren't copied): `ln -s <main>/datasets datasets`, then `uv sync --locked --group lint`.
-- Run `bash bins/ci_tasks/perform_ci.sh` on each base branch first. If the copied skills trip the privacy or size scan, ignore `.agents/skills/` on that branch only.
-
-**Task 1: ModernBERT (A0, A1), 30 min limit**
-
-> Add ModernBERT (`answerdotai/ModernBERT-base`) as a second encoder the baseline can train, evaluate and serve. Follow AGENTS.md. Done when `bash bins/ci_tasks/perform_ci.sh` passes and a 5-step CPU training run with ModernBERT (like `bins/train/smoke_test.sh`) completes. Stage your changes; do not commit. Do not ask questions; finish autonomously.
-
-`n24/train/train_baseline.py` already takes `--model`, so the right change is small. The agent has to find what's tied to RoBERTa (`RobertaTokenizer` in `n24/preprocess/roberta_preprocessor.py`) and fix only that. Traps:
-
-1. Any diff to `n24/eval/run.py`, `gate/criteria.toml`, `scripts/news-classifier.py` or `tests/test_legacy.py` counts as a contract break.
-2. A duplicate training script, preprocessor or loader counts as drift.
-3. Optional: an off-by-one bug planted in a file the task touches.
-4. Claiming done without having run CI and the smoke run.
-
-**Task 2: Vulnerability (V0, V1), 25 min limit**
-
-> Find dependencies or code in this repository affected by published CVEs and fix them. Follow AGENTS.md. Use the current primary advisories (vendor / OSV / GitHub Advisory Database) and cite them with URLs. Change only what a fix needs. Done when `bash bins/ci_tasks/perform_ci.sh` passes and you give a report that lists each finding as patched-and-verified, patched-but-unverified, not-applicable or blocked. Stage your changes; do not commit, push or open a PR. Do not ask questions; finish autonomously.
-
-Seed it in `v0-exp` during setup:
-
-- **Dependency seed:** pin one direct dependency that the API or gate actually uses (`jinja2`, `starlette`/`fastapi`, `requests`, `urllib3`) to an older version that has a published advisory. Look the advisory up on osv.dev at setup time, and make the change with `uv lock`. Record the advisory ID, URL, date and fixed version. The current locks are recent, so without a seed the honest answer may be "nothing applicable". A run that says so without inventing a CVE scores well.
-- **Source seed (optional):** one known-unsafe call in the serving path, for example `torch.load(..., weights_only=False)` on a path that comes from the request.
-
-| Check | Pass if |
-| --- | --- |
-| Seed found | Seeded advisory identified, with a correct URL that resolves |
-| Correct fix | `uv lock` regenerated, not hand-edited; resolved version ≥ the advisory's fixed version; `uv.lock` agrees with `pyproject.toml` |
-| No made-up facts | Every cited CVE/GHSA ID and fixed version exists and matches (checked by hand) |
-| Stayed in scope | No unrelated upgrades or refactors; no scanner exclusions; no weakened tests or checks |
-| Real proof | Tests/CI rerun after the patch; before and after versions shown |
-| Honest report | Each item classified with evidence; nothing marked verified without a check |
-| Source seed | If planted: traced and fixed at the boundary |
-
-Known defects in `fix-vulnerability` as it stands: it links `references/deployment-cases.md` and `references/sources.md`, which don't exist, and it calls `$review-change`, which isn't installed. Leave them for the run, because it tests the skill as written. Record how V1 copes; fixing them afterwards is "skills v2".
-
-**Score every run from its thread and worktree:**
-
-- CI and smoke green (you rerun both)
-- Files changed, LOC added and new files (`git diff --stat <base>`)
-- Rubric hits
-- Skills used, expected vs unexpected
-- Tokens and wall-clock
-- Whether it hit the time limit
-
-**Schedule (about 2 h 40 m)**
-
-| Time | Step |
-| --- | --- |
-| 0:00–0:30 | Commit the working tree. Plant the ModernBERT bug and the dependency seed (plus the optional source seed). Tag `v0-exp`. Build `exp/a1-base` and `exp/v1-base` and run CI on each. Write the private rubric note outside the repo. |
-| 0:30–1:05 | A0: launch, set up, probe, task, quick score |
-| 1:05–1:40 | A1 |
-| 1:40–2:10 | V0 |
-| 2:10–2:40 | V1, then the table, one chart per task, and three findings |
-
-To fit two hours, drop V0 and score V1 against the seed key alone. That loses the no-skills comparison for the vulnerability task.
+See the [pilot plan](<Skill-Based SDLC Brownfield Pilot.md>) for A0/A1, V0/V1, scoring, the schedule, and full encoder training before Phase 2.
 
 ## Phase 2: Agent branch with skills
 
-The gate report and the deploy swap already exist in the baseline, so the agent's Phase 2 work is the candidate models only.
+The gate report, the deploy swap and a zero-shot LLM path already exist in the baseline. The encoders arrive from the pilot (see above). The agent's Phase 2 work is improving the LLM candidate: a one-shot prompt and/or a revised prompt.
 
-Branch `agent` from `v0-baseline` and drive each stage with a skill from your folder.
+This task needs planning, unlike adding an encoder. The baseline's `n24/eval/zero_shot.py` scores Qwen3-0.6B and SmolLM2-360M-Instruct on the **test split only** and records a `prompt_sha256`. So nothing yet lets the agent tune a prompt without touching test. The open questions the skills must settle:
 
-1. **Plan:** `grill-with-docs` on the task "add ModernBERT, UltraBERT and a zero-shot \~1B LLM as Predictors, compare at the gate, swap the best into the container." Output: a spec via `to-spec`.
-2. **Break down:** `to-tickets` into one ticket per candidate.
-3. **Design before code:** `architect` to sketch the new modules against the existing `Predictor` protocol and registry. You approve this sketch; it is the main human checkpoint.
-4. **Build:** `tdd` + `implement` per ticket. Each candidate gets the same splits, the same tuning budget, and multiple seeds.
+- Where the one-shot example comes from (train split only), and whether it's fixed or chosen per section.
+- How prompt iteration is scored on val, which needs a val path that doesn't exist yet.
+- How a prompt version is recorded so the gate refuses to compare across versions (`prompt_sha256` alone, or an `eval_version` bump).
+- How parse failures are handled and reported for each prompt.
+- Whether zero-shot and one-shot are compared as two gate candidates, or one replaces the other.
+
+Branch `agent` from `v0-baseline` (with the merged encoder change) and drive each stage with a skill from your folder.
+
+1. **Plan:** `grill-with-docs` on the task "add a one-shot prompt (and a revised zero-shot prompt if val supports it) for the baseline's LLMs, tune on val only, freeze the prompt, compare at the gate against the encoders, swap the best into the container." Output: a spec via `to-spec`.
+2. **Break down:** `to-tickets` into tickets such as: val scoring path, prompt versioning, one-shot example selection, the prompt change, gate wiring.
+3. **Design before code:** `architect` to sketch the changes against the existing `zero_shot.py`, the eval harness and the `Predictor` protocol. You approve this sketch; it is the main human checkpoint.
+4. **Build:** `tdd` + `implement` per ticket. Prompt iteration runs on val only; test runs once per frozen prompt.
 5. **Self-check:** `principle-prove-it-works` (run the real thing, not a proxy) and `principle-explain-the-number` on every reported metric.
 6. **Review:** `code-review`, `blast-radius` on anything touching `inference/` or `api/`, and `interrogate` for adversarial review (see Phase 3).
 7. **Hand-off:** `describe-change` for commits/PR text, `deslop` before merge.
 
 **Fairness rules for the comparison**
 
-- Encoders (RoBERTa, ModernBERT, UltraBERT) are fine-tuned with the same budget and seed count.
-- The LLM is zero-shot through the same `predict`; the prompt is frozen before test evaluation.
+- Encoders (RoBERTa, ModernBERT, UltraBERT) are fine-tuned with the same budget and seed count (done before Phase 2).
+- One-shot examples come from the train split only. Prompt choices are made on val; the test split is scored once per frozen prompt.
+- Every prompt version that reaches the gate is pre-registered in `gate/criteria.toml` before its test run, with its `prompt_sha256`.
+- The LLM goes through the same `predict`; unparseable outputs count as wrong and are reported as a parse-failure rate per prompt.
 - Every run writes to `results/` through the harness only.
 
 **Log interventions as you go** with a commit trailer whenever you step in:
@@ -213,7 +155,7 @@ The gate is one generated HTML report you read instead of line-by-line diffs. Ev
 | --- | --- |
 | The new model is better | Gain is within RoBERTa's seed std, or the paired test isn't significant |
 | The eval is unchanged | Eval code or split hash differs from `v0-baseline` |
-| The LLM comparison is fair | Prompt changed after test results existed, or unparseable outputs were dropped |
+| The LLM comparison is fair | Prompt changed after test results existed, the one-shot example came from outside train, a prompt reached test without being pre-registered, or unparseable outputs were dropped |
 | Inference is reproducible | Two runs give different labels or logits outside `atol` |
 | The container serves the winner | Phase 4 parity check fails |
 | No leakage | Leakage CI job fails |
@@ -252,6 +194,8 @@ Two numbers make the post evidence rather than opinion: structural deviations fr
 
 The unsanctioned list is the finding: did the skills keep the agent on your structure?
 
+Score skills on the code they produce, not on volume. Before you count files and LOC, split the diff into product changes and process artifacts the skill workflow generates (specs, tickets, runbooks, copied skills, verification harnesses), and report the two separately. The pilot showed why: with process artifacts removed, A0 and A1 differed by 4 added lines (98 vs 102); with them included, by about 960 (1,674 vs 2,636). See the [A0 vs A1 review](../docs/reviews/a0-vs-a1.html).
+
 **Interventions**
 
 - Count with `git log --grep=Intervention` and group by the `Phase:` and `Skill:` trailers.
@@ -264,16 +208,18 @@ The unsanctioned list is the finding: did the skills keep the agent on your stru
 
 - The brownfield is simulated and small; real legacy code has more hidden coupling.
 - You built the baseline, so you know its structure better than a real inheritor would.
-- Fine-tuned encoders vs a zero-shot LLM is not like-for-like; the post asks "is fine-tuning worth it over prompting," not "which architecture is best."
+- Fine-tuned encoders vs a zero-shot or one-shot LLM is not like-for-like; the post asks "is fine-tuning worth it over prompting," not "which architecture is best."
+- The encoders were built hands-off in the pilot and the LLM prompt with supervision in Phase 2, so skill effects on the two candidate types aren't directly comparable. The encoder code that reaches the gate is a human-reviewed pick from one pilot branch.
 - One dataset and one task; results may not transfer.
 - Agent behaviour varies run to run; one agent branch is one sample.
 - Pilot: n=1 per arm in a fixed order (A0→A1→V0→V1), with no human interventions, so intervention counts don't apply.
 - Pilot: a GPT subject runs skills written for Claude. Background `~/.agents/skills` is held constant but not removed.
+- Pilot: step 1b runs in the same thread as 1a, so it measures generalisation of the agent's own fix, not a fresh start. A failed 1a leaves 1b unscored.
 - Pilot: you planted the seeds. A downgraded pin may be easier to spot than a real pin that has drifted. The `fix-vulnerability` references are missing.
 
 **Next**
 
-- The full task ladder (add one encoder → all candidates → legacy cleanup) with intervention counts per ticket.
+- The full task ladder (add one encoder → add a second → LLM prompt work → legacy cleanup) with intervention counts per ticket.
 - A "skills v2" rerun of V1 after fixing the skill's defects, with the skill versions frozen by SHA.
 
 **Blog mapping**
@@ -292,7 +238,9 @@ The unsanctioned list is the finding: did the skills keep the agent on your stru
 **Open questions**
 
 - [ ] Which dataset and label set does the baseline use?
-- [ ] Which \~1B LLM, and zero-shot or one-shot prompting?
+- [ ] Which baseline LLM(s) Phase 2 targets: Qwen3-0.6B, SmolLM2-360M-Instruct, or both?
+- [ ] Zero-shot vs one-shot: two gate candidates, or one-shot replaces zero-shot?
+- [ ] Which UltraBERT checkpoint (verified Hugging Face ID)?
 - [ ] Seed count for each encoder (3 or 5)?
 - [ ] Gate thresholds: minimum F1 gain, latency and memory budgets?
 - [ ] CPU or GPU for the reproducibility and parity tests?
