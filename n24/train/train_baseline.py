@@ -1,4 +1,4 @@
-"""Fine-tune RoBERTa on the prepared dataset's abstracts.
+"""Fine-tune a sequence classifier on the prepared dataset's abstracts.
 
 Keeps the epoch with the best macro F1 on the dev split, then writes
 best_model/, metrics.json, and training_report.pdf to the output directory.
@@ -162,7 +162,10 @@ def train(args: argparse.Namespace, commit: str) -> TrainingMetrics:
             metric_for_best_model="f1_macro",
             save_total_limit=1,
             save_only_model=True,
-            bf16=torch.cuda.is_available() and torch.cuda.is_bf16_supported(),
+            use_cpu=args.use_cpu,
+            bf16=not args.use_cpu
+            and torch.cuda.is_available()
+            and torch.cuda.is_bf16_supported(),
             logging_steps=50,
             report_to="none",
             seed=args.seed,
@@ -199,7 +202,9 @@ def train(args: argparse.Namespace, commit: str) -> TrainingMetrics:
         "args": {key: str(value) for key, value in vars(args).items()},
         "git_commit": commit,
         # Modal picks the first free GPU from a list, so record which one ran.
-        "gpu": torch.cuda.get_device_name() if torch.cuda.is_available() else None,
+        "gpu": (
+            torch.cuda.get_device_name() if trainer.args.device.type == "cuda" else None
+        ),
         "dataset_sha256": dataset_sha256(Path(args.data_dir)),
         "weights_sha256": sha256_file(best_dir / "model.safetensors"),
         # One entry per logging step and per evaluation: the training curves.
@@ -222,6 +227,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--max-length", type=int, default=128)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--use-cpu",
+        action="store_true",
+        help="Train on CPU even when a GPU is available",
+    )
     parser.add_argument(
         "--max-steps",
         type=int,

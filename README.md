@@ -132,6 +132,14 @@ sequence classification. The model input is the abstract alone.
 uv run python -m n24.train.train_baseline --data-dir datasets/prepared --output-dir experiment_runs/roberta-baseline
 ```
 
+Pass `--model answerdotai/ModernBERT-base` to train ModernBERT through the same
+trainer. Its saved run uses the existing evaluation and inference API commands,
+and the deployment image accepts its encoder type. A five-step CPU smoke run:
+
+```bash
+uv run python -m n24.train.train_baseline --model answerdotai/ModernBERT-base --data-dir datasets/prepared --output-dir experiment_runs/modernbert-smoke --max-steps 5 --batch-size 4 --max-length 64 --use-cpu
+```
+
 Use a GPU for the full run. How a run works:
 
 1. It creates the output directory and refuses to continue if it already
@@ -157,6 +165,7 @@ Use a GPU for the full run. How a run works:
 | `--max-length` | `128` | Tokens kept per abstract |
 | `--seed` | `42` | Random seed |
 | `--max-steps` | `-1` | Stop after N steps for a smoke run |
+| `--use-cpu` | off | Force training on CPU |
 
 `metrics.json` is the run's record. Tracking and the eval harness both read it:
 
