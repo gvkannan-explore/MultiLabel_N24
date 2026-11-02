@@ -4,6 +4,9 @@
 
 - Stage finished changes with `git add`, but do not commit unless the user asks for a commit at that moment. A plan that lists commits is not that request.
 - Do not push. The user pushes.
+- Before committing, verify `git var GIT_AUTHOR_IDENT` and `git var GIT_COMMITTER_IDENT` both use `REPO_NAME` and `REPO_EMAIL` from `scripts/check_privacy.py` (ADR 0003). Resolve local configuration or environment overrides before creating the commit.
+- Run push checks from the worktree that has the branch being pushed checked out; hooks use that worktree's scripts and files.
+- Before rewriting commits shared with `main` or another branch, explain which refs and commit SHAs will change, including the resulting ahead/behind counts, and obtain explicit approval for the affected refs. A request to fix a push failure is not approval to rewrite shared ancestors on one branch. Back up approved refs and verify that metadata-only repairs preserve every commit's file contents.
 
 ## Baseline branch
 

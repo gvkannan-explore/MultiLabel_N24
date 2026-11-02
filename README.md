@@ -209,7 +209,7 @@ One-time setup, from the repository root:
 ```bash
 uv run modal setup
 uv run modal volume create n24-data
-uv run modal volume put n24-data datasets/prepared /prepared
+uv run modal volume put n24-data datasets/prepared /data/prepared
 ```
 
 A real experiment goes through `bins/train/train_modal.sh`, which trains
