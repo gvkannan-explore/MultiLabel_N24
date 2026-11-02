@@ -25,6 +25,8 @@
 - Write a failing test first, then the code that makes it pass, unless told otherwise. Exception: `tests/test_legacy.py` pins existing legacy behavior, so its tests describe code that already exists.
 - Build the simplest design that fully meets current requirements and will last: no speculative abstractions or configuration, and no stopgaps meant to be replaced.
     - Before adding complexity for an unlikely race or security edge case, explain the failure mode, likelihood, and complexity cost to the user and get their buy-in.
+- Before adding a script, command, or workflow, inspect existing entry points, their callers, options, and side effects. Extend the existing workflow when the purpose is the same. Smoke/full runs, CPU/GPU selection, artifact downloads, and staging are usually options on that workflow.
+- Add a new entry point only for a distinct responsibility; explain why the existing entry point cannot reasonably support it. Keep execution logic in one place and have orchestration call that implementation. Preserve existing defaults when adding options.
 - Inline logic used once; extract a function when it has a second caller or is independently testable.
 - Let exceptions propagate. Catch only a specific exception you can handle at that point.
 - Delete dead code in the code you change. Ask before deleting code outside the task, and never delete legacy code.
