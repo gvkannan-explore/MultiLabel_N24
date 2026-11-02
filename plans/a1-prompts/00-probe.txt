@@ -1,0 +1,1 @@
+List the skills available to you, names only. Then fetch https://osv.dev and say whether it loaded. Then stop.

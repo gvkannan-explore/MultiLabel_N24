@@ -1,0 +1,1 @@
+Add ModernBERT (`answerdotai/ModernBERT-base`) as a second encoder the baseline can train, evaluate and serve. Follow AGENTS.md. Done when `bash bins/ci_tasks/perform_ci.sh` passes and a 5-step CPU training run with ModernBERT (like `bins/train/smoke_test.sh`) completes. Stage your changes; do not commit. Do not ask questions; finish autonomously.

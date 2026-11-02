@@ -1,0 +1,1 @@
+Now add UltraBERT (`dmis-lab/UltraBERT-150M`) as a third encoder, under the same rules and the same done criteria, with a 5-step CPU training run for UltraBERT.
